@@ -1,0 +1,25 @@
+{
+  "profiles": {
+    "example:plasma_bolt": {
+      "category": "projectile",
+      "emission": [0.25, 0.35, 0.55, 0.9, 1.25, 1.55, 1.7, 1.5],
+      "direct": 1.0,
+      "occlusion": 0.9,
+      "diffraction": 0.75,
+      "early_reflections": 0.55,
+      "late_reverb": 0.28,
+      "priority": 1.5,
+      "movement_sensitivity": 3.0,
+      "doppler": 1.2,
+      "transient": 1.1
+    }
+  },
+  "rules": [
+    {
+      "priority": 200,
+      "kind": "GLOB",
+      "match": "*plasma_bolt*",
+      "profile": "example:plasma_bolt"
+    }
+  ]
+}

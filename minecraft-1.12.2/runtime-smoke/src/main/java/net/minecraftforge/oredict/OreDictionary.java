@@ -1,0 +1,1 @@
+package net.minecraftforge.oredict;import net.minecraft.item.ItemStack;public final class OreDictionary{private OreDictionary(){}public static int[] getOreIDs(ItemStack s){String id=s.block.getRegistryName().toString();if("minecraft:stone".equals(id))return new int[]{1};return new int[0];}public static String getOreName(int id){return id==1?"stone":"unknown";}}

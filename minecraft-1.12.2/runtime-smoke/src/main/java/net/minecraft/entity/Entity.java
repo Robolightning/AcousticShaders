@@ -1,0 +1,1 @@
+package net.minecraft.entity;public class Entity{public double field_70165_t,field_70163_u,field_70161_v;public Entity(double x,double y,double z){field_70165_t=x;field_70163_u=y;field_70161_v=z;}public float func_70047_e(){return 1.62f;}}

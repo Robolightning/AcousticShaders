@@ -1,0 +1,327 @@
+import java.util.jar.JarFile
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+
+plugins {
+    id 'java'
+    id 'com.gtnewhorizons.retrofuturagradle'
+}
+
+group = 'dev.acoustic'
+version = '0.3.0-rc19'
+base {
+    archivesName = 'acoustic-shaders-mc1122'
+}
+
+def projectRoot = rootProject.projectDir.parentFile.canonicalFile
+def kotlinHomeValue = System.getenv('ACOUSTIC_KOTLIN_HOME') ?: findProperty('acousticKotlinHome')
+if (kotlinHomeValue == null || kotlinHomeValue.toString().trim().isEmpty()) {
+    throw new GradleException('ACOUSTIC_KOTLIN_HOME (or -PacousticKotlinHome=...) must point to the official Kotlin 2.4.0 kotlinc directory')
+}
+def acousticKotlinHome = file(kotlinHomeValue).canonicalFile
+def acousticKotlinc = new File(acousticKotlinHome, 'bin/kotlinc')
+
+def productionRoots = [
+    new File(projectRoot, 'acoustic-api/src/main/kotlin'),
+    new File(projectRoot, 'acoustic-platform-api/src/main/kotlin'),
+    new File(projectRoot, 'acoustic-core/src/main/kotlin'),
+    new File(projectRoot, 'minecraft-1.12.2/src/main/kotlin'),
+    new File(projectRoot, 'minecraft-1.12.2/src/forge/kotlin'),
+]
+def generatedKotlinRoot = layout.buildDirectory.dir('generated/acoustic-rfg-kotlin')
+def kotlinClasses = layout.buildDirectory.dir('classes/kotlin/main')
+
+java {
+    toolchain {
+        // Gradle/RFG itself runs on the WSL JDK 17. RFG/Minecraft compilation and launch tasks
+        // use a real Java 8 toolchain, provisioned by the Foojay resolver when necessary.
+        languageVersion = JavaLanguageVersion.of(8)
+    }
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+minecraft {
+    mcVersion = '1.12.2'
+    username = 'AcousticDeveloper'
+    javaCompatibilityVersion = 8
+    jvmLanguageVersion = JavaLanguageVersion.of(8)
+    extraRunJvmArguments.addAll([
+        '-ea:dev.acoustic',
+        '-Dmixin.checks.interfaces=true',
+        '-Dmixin.debug.export=true',
+    ])
+}
+
+repositories {
+    // Mirror the repositories required by the pinned RFG 1.4.9/Minecraft 1.12.2 dependency
+    // graph. RFG adds part of this itself, but declaring them here keeps the standalone
+    // integration workspace self-describing and avoids consumer-side repository gaps.
+    maven {
+        name = 'Forge Maven'
+        url = uri('https://maven.minecraftforge.net/')
+        content {
+            includeGroup 'net.minecraftforge'
+            includeGroup 'net.minecraftforge.srg2source'
+            includeGroup 'de.oceanlabs.mcp'
+            includeGroup 'cpw.mods'
+        }
+    }
+    maven {
+        name = 'Mojang Libraries'
+        url = uri('https://libraries.minecraft.net/')
+    }
+    maven {
+        name = 'Fabric Maven'
+        url = uri('https://maven.fabricmc.net/')
+        content { includeGroup 'net.fabricmc' }
+    }
+    maven {
+        name = 'GTNH Maven'
+        url = uri('https://nexus.gtnewhorizons.com/repository/public/')
+    }
+    mavenCentral()
+    maven {
+        name = 'CleanroomMC'
+        url = uri('https://maven.cleanroommc.com')
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'Modrinth'
+                url = uri('https://api.modrinth.com/maven')
+            }
+        }
+        filter { includeGroup('maven.modrinth') }
+    }
+}
+
+// RFG 1.4.9's 1.12.2 decompile/tooling path intentionally stays on Forge 14.23.5.2847 because
+// that is the legacy userdev artifact RFG knows how to provision. Acoustic Shaders' supported
+// runtime ABI is still exact Forge 14.23.5.2864, so only the plugin's forgeUniversal module
+// dependency is upgraded. Do not rewrite the RFG source/default: doing so makes RFG request a
+// non-existent 14.23.5.2864-userdev.jar.
+configurations.matching { it.name == 'forgeUniversal' }.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'net.minecraftforge' &&
+                details.requested.name == 'forge' &&
+                details.requested.version == '1.12.2-14.23.5.2847') {
+            details.useVersion('1.12.2-14.23.5.2864')
+            details.because('Acoustic Shaders targets exact Forge 14.23.5.2864 at runtime while RFG tooling remains on 2847 userdev')
+        }
+    }
+}
+
+def mixinBooter = 'zone.rong:mixinbooter:11.15'
+dependencies {
+    implementation(mixinBooter) { transitive = false }
+    // Forgelin-Continuous is the mandatory runtime owner of Kotlin libraries in Minecraft.
+    runtimeOnly 'maven.modrinth:1mPcAmuy:jZIkQLdu' // Forgelin-Continuous 2.4.0.0
+
+    // Do not add a runtime kotlin-stdlib dependency: the release JAR must rely on
+    // Forgelin-Continuous. Exact compiler-home stdlib is compile-only.
+    compileOnly files(
+        new File(acousticKotlinHome, 'lib/kotlin-stdlib.jar'),
+        new File(acousticKotlinHome, 'lib/kotlin-stdlib-jdk7.jar'),
+        new File(acousticKotlinHome, 'lib/kotlin-stdlib-jdk8.jar'),
+    )
+}
+
+sourceSets {
+    main {
+        java.setSrcDirs([])
+        resources.setSrcDirs([new File(projectRoot, 'minecraft-1.12.2/src/forge/resources')])
+    }
+}
+
+tasks.register('verifyExactKotlin') {
+    group = 'verification'
+    doLast {
+        if (!acousticKotlinc.isFile()) throw new GradleException("kotlinc missing: ${acousticKotlinc}")
+        def out = new ByteArrayOutputStream()
+        exec {
+            commandLine acousticKotlinc.absolutePath, '-version'
+            standardOutput = out
+            errorOutput = out
+            ignoreExitValue = false
+        }
+        def text = out.toString('UTF-8')
+        if (!text.contains('kotlinc-jvm 2.4.0')) throw new GradleException("exact Kotlin 2.4.0 required, got: ${text.trim()}")
+        logger.lifecycle('[PASS] RFG workspace uses exact Kotlin 2.4.0')
+    }
+}
+
+tasks.register('prepareAcousticRfgKotlinSource', Exec) {
+    group = 'build setup'
+    inputs.files(productionRoots.collect { fileTree(it) { include '**/*.kt' } })
+    inputs.file(new File(projectRoot, 'dev-tools/prepare-rfg-kotlin-source.py'))
+    outputs.dir(generatedKotlinRoot)
+    commandLine 'python3',
+        new File(projectRoot, 'dev-tools/prepare-rfg-kotlin-source.py').absolutePath,
+        '--root', projectRoot.absolutePath,
+        '--out', generatedKotlinRoot.get().asFile.absolutePath
+}
+
+tasks.register('compileAcousticKotlin', Exec) {
+    group = 'build'
+    dependsOn 'verifyExactKotlin', 'prepareAcousticRfgKotlinSource', 'packagePatchedMc'
+    inputs.dir(generatedKotlinRoot)
+    inputs.files(sourceSets.main.compileClasspath)
+    outputs.dir(kotlinClasses)
+    doFirst {
+        def outDir = kotlinClasses.get().asFile
+        project.delete(outDir)
+        outDir.mkdirs()
+        def sources = fileTree(generatedKotlinRoot) { include '**/*.kt' }.files.sort { a, b -> a.path <=> b.path }
+        if (sources.isEmpty()) throw new GradleException('RFG Kotlin source view is empty')
+        // Gradle source-set classpaths may contain output directories for source sets that
+        // legitimately have no sources/resources (api, injectedTags, mcLauncher resources).
+        // kotlinc warns for every missing classpath entry, and our intentional -Werror then
+        // turns those Gradle bookkeeping entries into a false compilation failure. Filter only
+        // non-existent filesystem entries at execution time; keep -Werror enabled for real
+        // compiler/source warnings and keep every classpath entry that RFG actually produced.
+        def rawClasspath = sourceSets.main.compileClasspath.files.toList().sort { a, b -> a.path <=> b.path }
+        def existingClasspath = rawClasspath.findAll { it.exists() }
+        def missingClasspath = rawClasspath.findAll { !it.exists() }
+        if (!missingClasspath.isEmpty()) {
+            logger.lifecycle('[INFO] RFG Kotlin classpath ignored {} non-existent Gradle output entries', missingClasspath.size())
+            missingClasspath.each { logger.info('  missing classpath entry: {}', it) }
+        }
+        if (existingClasspath.isEmpty()) {
+            throw new GradleException('RFG Kotlin compile classpath is empty after filtering non-existent entries')
+        }
+        def args = [
+            acousticKotlinc.absolutePath,
+            '-J-Xms128m', '-J-Xmx2048m',
+            // -Xjdk-release=8 also selects JVM target 8; do not pair it with -jvm-target.
+            '-Xjdk-release=8',
+            '-jvm-default=no-compatibility',
+            '-Werror',
+            '-classpath', files(existingClasspath).asPath,
+            '-d', outDir.absolutePath,
+        ] + sources.collect { it.absolutePath }
+        commandLine args
+    }
+}
+
+sourceSets.main.output.dir(kotlinClasses, builtBy: tasks.named('compileAcousticKotlin'))
+
+tasks.named('classes') {
+    dependsOn 'compileAcousticKotlin'
+}
+
+tasks.named('jar') {
+    dependsOn 'compileAcousticKotlin'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+            'Manifest-Version': '1.0',
+            'Implementation-Title': 'Acoustic Shaders',
+            'Implementation-Version': project.version,
+            'MixinConfigs': 'mixins.acousticshaders.json',
+        )
+    }
+}
+
+tasks.named('reobfJar') {
+    dependsOn 'compileAcousticKotlin'
+}
+
+tasks.register('verifyRfgEnvironment') {
+    group = 'verification'
+    dependsOn 'verifyExactKotlin'
+    doLast {
+        if (gradle.gradleVersion != '8.14.3') {
+            throw new GradleException("Gradle 8.14.3 required for the pinned RFG gate, got ${gradle.gradleVersion}")
+        }
+        def rfgRoot = file(System.getenv('ACOUSTIC_RFG_SOURCE')).canonicalFile
+        def ext = new File(rfgRoot, 'plugin/src/main/java/com/gtnewhorizons/retrofuturagradle/IMinecraftyExtension.java')
+        if (!ext.isFile()) throw new GradleException("RFG source marker missing: ${ext}")
+        def text = ext.getText('UTF-8')
+        if (!text.contains('case "1.12.2" -> "1.12.2-14.23.5.2847"')) {
+            throw new GradleException('RFG 1.4.9 checkout does not expose the expected Forge 14.23.5.2847 tooling/userdev default')
+        }
+        def gitDir = new File(rfgRoot, '.git')
+        if (!gitDir.exists()) throw new GradleException("RFG Git metadata missing: ${gitDir}")
+        def dirty = new ByteArrayOutputStream()
+        exec {
+            workingDir rfgRoot
+            commandLine 'git', 'status', '--porcelain'
+            standardOutput = dirty
+        }
+        if (!dirty.toString('UTF-8').trim().isEmpty()) {
+            throw new GradleException('Pinned RFG checkout is dirty; tooling source must remain unmodified on Forge 2847')
+        }
+        logger.lifecycle('[PASS] pinned RFG 1.4.9 source remains clean on Forge 14.23.5.2847 tooling/userdev')
+    }
+}
+
+tasks.register('verifyReobfAcousticJar') {
+    group = 'verification'
+    dependsOn 'reobfJar', 'verifyRfgEnvironment'
+    doLast {
+        def jarFile = new File(layout.buildDirectory.get().asFile, "libs/acoustic-shaders-mc1122-${project.version}.jar")
+        if (!jarFile.isFile()) throw new GradleException("RFG reobfuscated JAR missing: ${jarFile}")
+        def jf = new JarFile(jarFile)
+        try {
+            def names = jf.entries().collect { it.name } as Set
+            [
+                'dev/acoustic/mc1122/forge/AcousticShadersForgeMod.class',
+                'dev/acoustic/mc1122/forge/GuiAcousticShaders.class',
+                'dev/acoustic/mc1122/mixin/MixinSourceLWJGLOpenAL.class',
+                'mixins.acousticshaders.json',
+                'mcmod.info',
+            ].each { required ->
+                if (!names.contains(required)) throw new GradleException("RFG JAR missing ${required}")
+            }
+            if (names.any { it.startsWith('kotlin/') && it.endsWith('.class') }) {
+                throw new GradleException('Kotlin runtime leaked into RFG JAR')
+            }
+            if (jf.manifest?.mainAttributes?.getValue('MixinConfigs') != 'mixins.acousticshaders.json') {
+                throw new GradleException('RFG JAR lost MixinConfigs manifest attribute')
+            }
+            int classes = 0
+            jf.entries().each { e ->
+                if (!e.name.endsWith('.class')) return
+                byte[] b = jf.getInputStream(e).bytes
+                int major = ((b[6] & 0xff) << 8) | (b[7] & 0xff)
+                if (major != 52) throw new GradleException("non-Java8 class in RFG JAR: ${e.name} major=${major}")
+                classes++
+            }
+            logger.lifecycle("[PASS] RFG reobfuscated Acoustic Shaders JAR: ${classes} Java-8 classes, no shaded Kotlin runtime")
+        } finally {
+            jf.close()
+        }
+
+        exec {
+            commandLine 'python3',
+                new File(projectRoot, 'dev-tools/verify-rfg-reobf-jar.py').absolutePath,
+                jarFile.absolutePath
+        }
+
+        def forgeCfg = configurations.findByName('forgeUniversal')
+        if (forgeCfg == null) throw new GradleException('RFG forgeUniversal configuration missing')
+        def forgeArtifacts = forgeCfg.resolvedConfiguration.resolvedArtifacts.findAll {
+            def id = it.moduleVersion.id
+            id.group == 'net.minecraftforge' && id.name == 'forge'
+        }
+        def versions = forgeArtifacts.collect { it.moduleVersion.id.version }.unique().sort()
+        if (versions != ['1.12.2-14.23.5.2864']) {
+            def resolved = forgeCfg.resolvedConfiguration.resolvedArtifacts.collect {
+                def id = it.moduleVersion.id
+                "${id.group}:${id.name}:${id.version}:${it.classifier ?: '<none>'} -> ${it.file.name}"
+            }.sort()
+            throw new GradleException("RFG resolved unexpected Forge version(s): ${versions}; artifacts=${resolved}")
+        }
+        def universal = forgeArtifacts.findAll { it.classifier == 'universal' }
+        if (universal.size() != 1) {
+            def classifiers = forgeArtifacts.collect { it.classifier ?: '<none>' }.sort()
+            throw new GradleException("RFG expected exactly one Forge universal artifact, classifiers=${classifiers}")
+        }
+        logger.lifecycle("[PASS] RFG resolved exact Forge 14.23.5.2864 universal: ${universal[0].file.name}")
+    }
+}
+
+tasks.register('rfgReleaseGate') {
+    group = 'verification'
+    dependsOn 'verifyRfgEnvironment', 'setupCIWorkspace', 'verifyReobfAcousticJar'
+}

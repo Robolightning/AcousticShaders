@@ -1,0 +1,1 @@
+package net.minecraft.util;public final class SoundEvent{private final ResourceLocation id;public SoundEvent(String id){this.id=new ResourceLocation(id);}public ResourceLocation getRegistryName(){return id;}}

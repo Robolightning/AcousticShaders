@@ -1,0 +1,1 @@
+package org.lwjgl.opencl; public final class CLDevice extends CLObject {public String getInfoString(int p){return "stub";}public int getInfoInt(int p){return 1;}public boolean getInfoBoolean(int p){return false;}}

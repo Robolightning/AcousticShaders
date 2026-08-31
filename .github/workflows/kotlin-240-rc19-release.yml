@@ -1,0 +1,153 @@
+name: Kotlin 2.4 RC19 Release Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'acoustic-api/**'
+      - 'acoustic-platform-api/**'
+      - 'acoustic-core/**'
+      - 'acoustic-testkit/**'
+      - 'acoustic-tools/**'
+      - 'minecraft-1.12.2/**'
+      - 'examples/**'
+      - 'spec/**'
+      - 'docs/**'
+      - '*.sh'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - '.github/workflows/kotlin-240-rc19-release.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'acoustic-api/**'
+      - 'acoustic-platform-api/**'
+      - 'acoustic-core/**'
+      - 'acoustic-testkit/**'
+      - 'acoustic-tools/**'
+      - 'minecraft-1.12.2/**'
+      - 'examples/**'
+      - 'spec/**'
+      - 'docs/**'
+      - '*.sh'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - '.github/workflows/kotlin-240-rc19-release.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  release-gate:
+    name: Kotlin 2.4.0 / JVM 8 / RC19
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      KOTLIN_VERSION: '2.4.0'
+      KOTLIN_ZIP_SHA256: 'ba1b9e6eb6ddc3275079224f2e9ea4a2b02eef7d59ce2d38404f04b22613c20a'
+      ACOUSTIC_REQUIRE_KOTLIN_VERSION: '2.4.0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Install native verification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang unzip
+
+      - name: Fetch and verify official Kotlin 2.4.0 compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/kotlin-compiler-${KOTLIN_VERSION}.zip"
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output "$ZIP" \
+            "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip"
+          printf '%s  %s\n' "$KOTLIN_ZIP_SHA256" "$ZIP" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/kotlin-${KOTLIN_VERSION}"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/kotlin-${KOTLIN_VERSION}"
+          KOTLIN_HOME="$RUNNER_TEMP/kotlin-${KOTLIN_VERSION}/kotlinc"
+          test -x "$KOTLIN_HOME/bin/kotlinc"
+          test -x "$KOTLIN_HOME/bin/kotlin"
+          echo "ACOUSTIC_KOTLINC=$KOTLIN_HOME/bin/kotlinc" >> "$GITHUB_ENV"
+          echo "ACOUSTIC_KOTLIN=$KOTLIN_HOME/bin/kotlin" >> "$GITHUB_ENV"
+          "$KOTLIN_HOME/bin/kotlinc" -version 2>&1 | tee "$RUNNER_TEMP/kotlinc-version.txt"
+          grep -F "kotlinc-jvm ${KOTLIN_VERSION}" "$RUNNER_TEMP/kotlinc-version.txt"
+
+      - name: Strict unified RC19 build
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./build-local-release.sh
+
+      - name: Preserve first deterministic package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rc19-first"
+          cp -a dist/. "$RUNNER_TEMP/rc19-first/"
+          sha256sum \
+            dist/acoustic-shaders-mc1122-0.3.0-rc19.jar \
+            dist/acoustic-shaders-source-0.3.0-rc19.tar.gz \
+            dist/AcousticShaders-mc1122-0.3.0-rc19-ALL-IN-ONE.zip \
+            | tee "$RUNNER_TEMP/rc19-first.sha256"
+
+      - name: Repackage verified bytecode and prove reproducibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./package-local-release.sh
+          cmp "$RUNNER_TEMP/rc19-first/acoustic-shaders-mc1122-0.3.0-rc19.jar" \
+              dist/acoustic-shaders-mc1122-0.3.0-rc19.jar
+          cmp "$RUNNER_TEMP/rc19-first/acoustic-shaders-source-0.3.0-rc19.tar.gz" \
+              dist/acoustic-shaders-source-0.3.0-rc19.tar.gz
+          cmp "$RUNNER_TEMP/rc19-first/AcousticShaders-mc1122-0.3.0-rc19-ALL-IN-ONE.zip" \
+              dist/AcousticShaders-mc1122-0.3.0-rc19-ALL-IN-ONE.zip
+          sha256sum \
+            dist/acoustic-shaders-mc1122-0.3.0-rc19.jar \
+            dist/acoustic-shaders-source-0.3.0-rc19.tar.gz \
+            dist/AcousticShaders-mc1122-0.3.0-rc19-ALL-IN-ONE.zip \
+            | tee "$RUNNER_TEMP/rc19-second.sha256"
+          diff -u "$RUNNER_TEMP/rc19-first.sha256" "$RUNNER_TEMP/rc19-second.sha256"
+          echo '[PASS] RC19 JAR/source/ALL-IN-ONE are bit-for-bit reproducible'
+
+      - name: Publish release-gate summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Acoustic Shaders RC19 exact-toolchain gate'
+            echo
+            echo '- Kotlin: 2.4.0 (official JetBrains compiler ZIP, SHA-256 verified)'
+            echo '- JVM target: Java 8'
+            echo '- Runtime dependency: Forgelin-Continuous 2.4.0.0+'
+            echo '- Production language invariant: Kotlin only'
+            if test -f "$RUNNER_TEMP/rc19-second.sha256"; then
+              echo '- Deterministic packaging: PASS'
+              echo
+              echo '```text'
+              cat "$RUNNER_TEMP/rc19-second.sha256"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload exact-toolchain RC19 candidate
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AcousticShaders-mc1122-0.3.0-rc19-kotlin-2.4.0
+          path: |
+            dist/AcousticShaders-mc1122-0.3.0-rc19-ALL-IN-ONE.zip
+            dist/acoustic-shaders-mc1122-0.3.0-rc19.jar
+            dist/acoustic-shaders-source-0.3.0-rc19.tar.gz
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

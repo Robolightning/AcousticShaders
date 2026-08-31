@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "passes": [
+    {
+      "id": "standard.source_behavior",
+      "enabled": "${SOURCE_PROFILES == ON}"
+    },
+    {
+      "id": "standard.direct_path",
+      "enabled": true
+    },
+    {
+      "id": "standard.diffraction",
+      "enabled": "${DIFFRACTION == ON}"
+    },
+    {
+      "id": "standard.environment_rays",
+      "enabled": "${GEOMETRIC == ON}",
+      "options": {
+        "min_energy": 0.001
+      }
+    },
+    {
+      "id": "standard.early_reflections",
+      "enabled": "${EARLY_REFLECTIONS == ON}"
+    },
+    {
+      "id": "standard.late_reverb",
+      "enabled": "${LATE_REVERB == ON}"
+    },
+    {
+      "id": "standard.wave_low_frequency",
+      "enabled": "${WAVE != OFF}"
+    },
+    {
+      "id": "standard.hybrid",
+      "enabled": true
+    },
+    {
+      "id": "standard.impulse_response",
+      "enabled": true,
+      "options": {
+        "sample_rate": 48000
+      }
+    },
+    {
+      "id": "standard.foa",
+      "enabled": true
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "materials": {
+    "example:acoustic_foam": {
+      "absorption": [0.12, 0.28, 0.55, 0.78, 0.90, 0.94, 0.96, 0.97],
+      "scattering": 0.62,
+      "transmission": 0.03
+    },
+    "example:hard_metal": {
+      "absorption": [0.01, 0.01, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05],
+      "scattering": 0.08,
+      "transmission": 0.01
+    }
+  },
+  "rules": [
+    {
+      "priority": 100,
+      "kind": "REGISTRY_ID",
+      "match": "examplemod:acoustic_foam",
+      "material": "example:acoustic_foam"
+    },
+    {
+      "priority": 50,
+      "kind": "DICTIONARY_EXACT",
+      "match": "blockSteel",
+      "material": "example:hard_metal"
+    }
+  ]
+}

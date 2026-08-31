@@ -1,0 +1,14 @@
+[
+  {
+    "modid": "acousticshaders",
+    "name": "Acoustic Shaders",
+    "description": "Shader-pack driven environmental acoustics for Minecraft 1.12.2.",
+    "version": "0.3.0-rc19",
+    "mcversion": "1.12.2",
+    "url": "",
+    "authorList": ["Robolightning"],
+    "credits": "Created by Robolightning; shader-pack-driven hybrid acoustic framework",
+    "requiredMods": ["mixinbooter", "forgelin_continuous"],
+    "dependencies": []
+  }
+]

@@ -1,0 +1,1 @@
+package net.minecraft.item;import net.minecraft.block.Block;public final class ItemStack{public final Block block;public final int count,meta;public ItemStack(Block block,int count,int meta){this.block=block;this.count=count;this.meta=meta;}}

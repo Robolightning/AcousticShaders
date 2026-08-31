@@ -1,0 +1,3 @@
+package net.minecraft.client;
+import net.minecraft.client.audio.SoundHandler;import net.minecraft.client.gui.FontRenderer;import net.minecraft.client.gui.GuiScreen;
+public class Minecraft {private static final Minecraft INSTANCE=new Minecraft();public GuiScreen currentScreen;public FontRenderer fontRenderer=new FontRenderer();public FontRenderer field_71466_p=fontRenderer;public static Minecraft getMinecraft(){return INSTANCE;}public static Minecraft func_71410_x(){return INSTANCE;}public void displayGuiScreen(GuiScreen screen){currentScreen=screen;}public void func_147108_a(GuiScreen screen){currentScreen=screen;}public SoundHandler getSoundHandler(){return new SoundHandler();}public SoundHandler func_147118_V(){return new SoundHandler();}}

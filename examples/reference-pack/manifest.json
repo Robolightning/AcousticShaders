@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "spec": "0.3",
+  "id": "acoustic:reference",
+  "name": "Reference Acoustic Shader",
+  "requires": [
+    "ray_query"
+  ],
+  "optional": [
+    "parallel_cpu",
+    "gpu_compute",
+    "wave_field",
+    "hrtf",
+    "ambisonics",
+    "convolution"
+  ]
+}

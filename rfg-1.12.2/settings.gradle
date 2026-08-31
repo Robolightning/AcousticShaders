@@ -1,0 +1,57 @@
+pluginManagement {
+    def rfgSource = System.getenv('ACOUSTIC_RFG_SOURCE')
+    if (rfgSource == null || rfgSource.trim().isEmpty()) {
+        throw new GradleException('ACOUSTIC_RFG_SOURCE must point to the pinned clean RetroFuturaGradle 1.4.9 checkout')
+    }
+    includeBuild(new File(rfgSource, 'plugin')) {
+        name = 'retrofuturagradle'
+    }
+    repositories {
+        // The RFG plugin is consumed as an included build. Its runtime dependency graph is
+        // resolved through *this* pluginManagement repository set, not only through the
+        // repositories declared in RFG's own plugin/build.gradle.kts. Keep this aligned with
+        // the verified RFG 1.4.9 repository universe so Fabric Mercury/mapping-io and legacy
+        // Forge/Mojang artifacts resolve deterministically on a fresh WSL machine.
+        maven {
+            name = 'Forge Maven'
+            url = uri('https://maven.minecraftforge.net/')
+            content {
+                includeGroup 'net.minecraftforge'
+                includeGroup 'net.minecraftforge.srg2source'
+                includeGroup 'de.oceanlabs.mcp'
+                includeGroup 'cpw.mods'
+            }
+        }
+        maven {
+            name = 'Mojang Libraries'
+            url = uri('https://libraries.minecraft.net/')
+            content {
+                includeGroup 'com.ibm.icu'
+                includeGroup 'com.mojang'
+                includeGroup 'com.paulscode'
+                includeGroup 'org.lwjgl.lwjgl'
+                includeGroup 'tv.twitch'
+                includeGroup 'net.minecraft'
+            }
+        }
+        maven {
+            name = 'Fabric Maven'
+            url = uri('https://maven.fabricmc.net/')
+            content { includeGroup 'net.fabricmc' }
+        }
+        maven {
+            name = 'GTNH Maven'
+            url = uri('https://nexus.gtnewhorizons.com/repository/public/')
+        }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+plugins {
+    // Gradle/RFG runs on the WSL JDK 17, while Minecraft compilation/run tasks use an
+    // automatically provisioned Java 8 toolchain.
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.7.0'
+}
+
+rootProject.name = 'acoustic-shaders-rfg-1.12.2'

@@ -1,0 +1,35 @@
+package dev.acoustic.core.pack
+
+import java.util.Collections
+import java.util.LinkedHashMap
+
+/** Deterministically composes an ordered acoustic-shader stack. */
+object ShaderPackStackComposer {
+    @JvmStatic
+    fun compose(stack: List<LoadedShaderPack>?): LoadedShaderPack {
+        require(!stack.isNullOrEmpty()) { "shader stack must contain at least one pack" }
+        val base = stack[0]
+        val passes = LinkedHashMap<String, PipelineDefinition.PassDefinition>()
+        val options = LinkedHashMap<String, String>()
+        val materials = LinkedHashMap<String, MaterialPack>()
+        val media = LinkedHashMap<String, MediumPack>()
+        val format = base.pipeline().format()
+        for (pack in stack) {
+            require(pack.pipeline().format() == format) { "pipeline format mismatch in shader stack" }
+            for (pass in pack.pipeline().passes()) passes[pass.id()] = pass
+            options.putAll(pack.options().values())
+            materials.putAll(pack.materialPacks())
+            media.putAll(pack.mediumPacks())
+        }
+        val pipeline = PipelineDefinition.of(format, ArrayList(passes.values))
+        return LoadedShaderPack(base.manifest(), pipeline, PackOptions.of(options), materials, media)
+    }
+
+    @JvmStatic
+    fun names(stack: List<LoadedShaderPack>?): List<String> {
+        if (stack == null) return emptyList()
+        val out = ArrayList<String>(stack.size)
+        for (pack in stack) out.add(pack.manifest().name())
+        return Collections.unmodifiableList(out)
+    }
+}

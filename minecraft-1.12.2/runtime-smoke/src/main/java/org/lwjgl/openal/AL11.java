@@ -1,0 +1,1 @@
+package org.lwjgl.openal;public final class AL11{public static final int AL_SEC_OFFSET=0x1024;public static int source3iCalls;public static int lastSource;public static int lastSlot;public static int lastFilter;public static void alSource3i(int source,int param,int slot,int send,int filter){source3iCalls++;lastSource=source;lastSlot=slot;lastFilter=filter;}}

@@ -1,0 +1,3 @@
+package org.lwjgl;
+import java.nio.ByteBuffer;import java.nio.ByteOrder;import java.nio.FloatBuffer;import java.nio.IntBuffer;
+public final class BufferUtils {private BufferUtils(){}public static ByteBuffer createByteBuffer(int n){return ByteBuffer.allocateDirect(n).order(ByteOrder.nativeOrder());}public static IntBuffer createIntBuffer(int n){return ByteBuffer.allocateDirect(n*4).order(ByteOrder.nativeOrder()).asIntBuffer();}public static FloatBuffer createFloatBuffer(int n){return ByteBuffer.allocateDirect(n*4).order(ByteOrder.nativeOrder()).asFloatBuffer();}public static PointerBuffer createPointerBuffer(int n){return new PointerBuffer(n);}}

@@ -1,0 +1,10 @@
+.gradle/
+build/
+out/
+run/
+*.iml
+.idea/
+
+# Generated conformance fixtures
+examples/*.zip
+dist/
