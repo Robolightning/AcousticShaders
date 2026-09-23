@@ -49,7 +49,25 @@ if [[ -n "${ACOUSTIC_MC_1122_CLIENT:-}" && -n "${ACOUSTIC_MCP_CONFIG_1122:-}" &&
   ./dev-real-liquid-height-contract.sh
 fi
 
-./dev-legacy-contract.sh
+LEGACY_RECEIPT="$PWD/out/legacy-contract.receipt"
+LEGACY_REUSE="${ACOUSTIC_VERIFY_REUSE_LEGACY:-0}"
+case "$LEGACY_REUSE" in 0|1) ;; *) echo "ERROR: ACOUSTIC_VERIFY_REUSE_LEGACY must be 0 or 1" >&2; exit 1;; esac
+LEGACY_HEAD="$(git rev-parse HEAD)"
+LEGACY_INPUTS="$(./release-input-fingerprint.sh)"
+LEGACY_KEY="head=$LEGACY_HEAD inputs=$LEGACY_INPUTS"
+LEGACY_REUSED=0
+if [[ "$LEGACY_REUSE" == 1 && -z "$(git status --porcelain --untracked-files=all)" && -s "$LEGACY_RECEIPT" && -d "$PWD/out/forge-classes" ]]; then
+  if [[ "$(cat "$LEGACY_RECEIPT")" == "$LEGACY_KEY" ]]; then
+    LEGACY_REUSED=1
+    printf '%s\n' '[PASS] reused legacy contract receipt bound to current clean HEAD + release-input fingerprint'
+  fi
+fi
+if [[ "$LEGACY_REUSED" == 0 ]]; then
+  ./dev-legacy-contract.sh
+  mkdir -p "$PWD/out"
+  printf '%s\n' "$LEGACY_KEY" > "$LEGACY_RECEIPT"
+  printf '%s\n' '[PASS] wrote legacy contract receipt bound to current HEAD + release-input fingerprint'
+fi
 if [[ -n "${ACOUSTIC_MC_1122_CLIENT:-}" && -n "${ACOUSTIC_MCP_CONFIG_1122:-}" && -n "${ACOUSTIC_FORGE_1122_UNIVERSAL:-}" ]]; then
   ACOUSTIC_REAL_SRG_PORTABLE_CLASSES="$PWD/out/forge-classes" ./dev-real-srg-contract.sh
   ./dev-physical-projectile-gameplay-probe.sh
