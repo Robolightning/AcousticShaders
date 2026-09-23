@@ -52,6 +52,8 @@ fi
 ./dev-legacy-contract.sh
 if [[ -n "${ACOUSTIC_MC_1122_CLIENT:-}" && -n "${ACOUSTIC_MCP_CONFIG_1122:-}" && -n "${ACOUSTIC_FORGE_1122_UNIVERSAL:-}" ]]; then
   ACOUSTIC_REAL_SRG_PORTABLE_CLASSES="$PWD/out/forge-classes" ./dev-real-srg-contract.sh
+  ./dev-physical-projectile-gameplay-probe.sh
+  ./dev-physical-liquid-tnt-gameplay-probe.sh
   ./dev-real-srg-bytecode-audit.sh "$PWD/out/forge-classes"
   ./dev-rfg-reobf-equivalent-contract.sh
 fi

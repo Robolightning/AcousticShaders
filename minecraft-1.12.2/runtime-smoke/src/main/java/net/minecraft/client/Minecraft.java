@@ -13,12 +13,14 @@ public final class Minecraft{
     public final GameSettings field_71474_y=gameSettings;
     public final ResourcePackRepository resourcePackRepository=new ResourcePackRepository();
     public int resourceRefreshes;
+    public final net.minecraft.client.audio.SoundHandler soundHandler=new net.minecraft.client.audio.SoundHandler();
     private Minecraft(){}
     public static Minecraft func_71410_x(){return INSTANCE;}
     public static Minecraft getMinecraft(){return INSTANCE;}
     public Entity func_175606_aa(){return field_71439_g;}
     public void displayGuiScreen(net.minecraft.client.gui.GuiScreen s){currentScreen=s;}
-    public net.minecraft.client.audio.SoundHandler getSoundHandler(){return new net.minecraft.client.audio.SoundHandler();}
+    public net.minecraft.client.audio.SoundHandler getSoundHandler(){return soundHandler;}
+    public net.minecraft.client.audio.SoundHandler func_147118_V(){return soundHandler;}
     public ResourcePackRepository getResourcePackRepository(){return resourcePackRepository;}
     public ResourcePackRepository func_110438_M(){return resourcePackRepository;}
     public void refreshResources(){resourceRefreshes++;}

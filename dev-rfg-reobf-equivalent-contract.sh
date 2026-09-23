@@ -52,16 +52,24 @@ with zipfile.ZipFile(dest,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) 
         z.writestr(zi,p.read_bytes())
 PYJAR
 
-python3 - "$JAR" <<'PYSTRUCT'
+python3 - "$JAR" "$ROOT/out/forge-classes" <<'PYSTRUCT'
+from pathlib import Path
 import struct,sys,zipfile
-jar=sys.argv[1]
+jar=Path(sys.argv[1]); verified=Path(sys.argv[2])
 required={
     'dev/acoustic/mc1122/forge/AcousticShadersForgeMod.class',
     'dev/acoustic/mc1122/forge/GuiAcousticShaders.class',
+    'dev/acoustic/mc1122/forge/LegacyProjectileEmitterManager.class',
+    'dev/acoustic/mc1122/forge/LegacyDirectPathDiagnostic.class',
     'dev/acoustic/mc1122/mixin/MixinSourceLWJGLOpenAL.class',
+    'assets/acousticshaders/sounds.json',
+    'assets/acousticshaders/sounds/projectile/flight.ogg',
     'mixins.acousticshaders.json',
     'mcmod.info',
 }
+expected={p.relative_to(verified).as_posix() for p in verified.rglob('*.class')}
+if not expected:
+    raise SystemExit('ERROR: verified production class set missing: '+str(verified))
 with zipfile.ZipFile(jar) as z:
     names=set(z.namelist())
     missing=required-names
@@ -72,9 +80,11 @@ with zipfile.ZipFile(jar) as z:
     manifest=z.read('META-INF/MANIFEST.MF').decode('utf-8','replace')
     if 'MixinConfigs: mixins.acousticshaders.json' not in manifest:
         raise SystemExit('ERROR: reobf-equivalent JAR lost MixinConfigs manifest attribute')
-    classes=[n for n in names if n.endswith('.class')]
-    if len(classes) != 313:
-        raise SystemExit(f'ERROR: expected 313 production classes, got {len(classes)}')
+    classes={n for n in names if n.endswith('.class')}
+    if classes != expected:
+        missing_classes=sorted(expected-classes)
+        extra_classes=sorted(classes-expected)
+        raise SystemExit('ERROR: production class-set mismatch missing=%s extra=%s' % (missing_classes[:20],extra_classes[:20]))
     for name in classes:
         data=z.read(name)
         if data[:4] != b'\xca\xfe\xba\xbe':
@@ -82,7 +92,7 @@ with zipfile.ZipFile(jar) as z:
         major=struct.unpack('>H',data[6:8])[0]
         if major != 52:
             raise SystemExit(f'ERROR: non-Java8 class {name}: major={major}')
-print('[PASS] reobf-equivalent JAR: 313 Java-8 classes, resources/manifest present, no shaded Kotlin runtime')
+print(f'[PASS] reobf-equivalent JAR: exact {len(expected)}-class verified production set, Java 8, resources/manifest present, no shaded Kotlin runtime')
 PYSTRUCT
 
 python3 "$ROOT/dev-tools/verify-rfg-reobf-jar.py" "$JAR"

@@ -120,6 +120,13 @@ for p in root.rglob('*.kt'):
         p.write_text(n);changed+=1
 if changed!=3:
     raise SystemExit(f'ERROR: expected to normalize 3 dual-name GUI sources, changed {changed}')
+projectile=root/'dev/acoustic/mc1122/forge/LegacyProjectileEmitterManager.kt'
+ps=projectile.read_text()
+ps,n_update=re.subn(r'(?m)^(\s*)override fun update\(\)',r'\1fun update()',ps,count=1)
+ps,n_srg=re.subn(r'(?m)^(\s*)fun func_73660_a\(\)',r'\1override fun func_73660_a()',ps,count=1)
+if n_update!=1 or n_srg!=1:
+    raise SystemExit(f'ERROR: projectile tick SRG normalization mismatch update={n_update} srg={n_srg}')
+projectile.write_text(ps)
 PY
 find "$OUT/forge-source" -name '*.kt' | sort > "$OUT/forge-kotlin-sources.txt"
 KOTLIN_HOME_DIR="$(cd "$(dirname "$KOTLINC_BIN")/.." && pwd)"

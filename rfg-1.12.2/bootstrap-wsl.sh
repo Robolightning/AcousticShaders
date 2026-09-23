@@ -187,7 +187,7 @@ if [[ $gradle_rc -ne 0 ]]; then
   exit "$gradle_rc"
 fi
 
-REOBF_JAR="$ROOT/rfg-1.12.2/build/libs/acoustic-shaders-mc1122-0.3.0-rc19.jar"
+REOBF_JAR="$ROOT/rfg-1.12.2/build/libs/acoustic-shaders-mc1122-0.3.0-rc20.jar"
 [[ -f "$REOBF_JAR" ]] || { echo "ERROR: expected RFG output missing: $REOBF_JAR" >&2; exit 1; }
 cp "$REOBF_JAR" "$RESULT_DIR/"
 cp "$LOG" "$RESULT_DIR/rfg-release-gate.log"

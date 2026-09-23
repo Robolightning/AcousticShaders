@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 OUT="$ROOT/out"
 DIST="$ROOT/dist"
-VERSION='0.3.0-rc19'
+VERSION='0.3.0-rc20'
 JAR="$DIST/acoustic-shaders-mc1122-$VERSION.jar"
 STAMP="$OUT/release-verification.stamp"
 cd "$ROOT"
@@ -62,14 +62,14 @@ with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
 PYDATA
 cp "$ROOT/windows/Install-And-Test-AcousticShaders-1.12.2.ps1" "$DIST/Install-And-Test-AcousticShaders-1.12.2.ps1"
 cat > "$DIST/FIRST-TEST-RU.txt" <<'TXT'
-Acoustic Shaders 0.3.0-rc19 — Minecraft 1.12.2
+Acoustic Shaders 0.3.0-rc20 — Minecraft 1.12.2
 
 Обязательные зависимости:
 - Forge 14.23.5.2864;
 - MixinBooter 11.15;
 - Forgelin-Continuous 2.4.0.0+ (обычный старый Forgelin одновременно не устанавливать).
 
-RC19 — первая полностью Kotlin production-ветка. Reference Acoustic Shader сохраняет POTATO / LOW / MEDIUM / HIGH / ULTRA / MAXIMUM, progressive world capture RC18, CUDA -> OpenCL -> CPU fallback и полный live Acoustic Shader DAG.
+RC20 — продолжение полностью Kotlin production-ветки: entity-derived projectile flight emitters, direct-path gameplay diagnostics, универсальные Forge-fluid media и transactional custom-shader hot reload поверх проверенной RC19 базы. Reference Acoustic Shader сохраняет POTATO / LOW / MEDIUM / HIGH / ULTRA / MAXIMUM, progressive world capture RC18, CUDA -> OpenCL -> CPU fallback и полный live Acoustic Shader DAG.
 
 Новая жидкостная акустика:
 - AIR / WATER / LAVA и modded `acoustic_media`;
@@ -116,6 +116,9 @@ for entry in \
   dev/acoustic/mc1122/forge/CudaSupport.class \
   dev/acoustic/mc1122/forge/CudaFdtdBackend.class \
   dev/acoustic/mc1122/forge/CudaGeometricBackend.class \
+  dev/acoustic/mc1122/forge/LegacyProjectileEmitterManager.class \
+  dev/acoustic/mc1122/forge/LegacyDirectPathDiagnostic.class \
+  assets/acousticshaders/sounds.json assets/acousticshaders/sounds/projectile/flight.ogg \
   assets/acousticshaders/cuda/fdtd.cu assets/acousticshaders/cuda/rays.cu \
   mixins.acousticshaders.json mcmod.info assets/acousticshaders/shaderpacks/AcousticShaders-Reference-Hybrid.zip; do
   unzip -Z1 "$JAR" | grep -Fx "$entry" >/dev/null || { echo "ERROR: missing JAR entry: $entry" >&2; exit 1; }
@@ -151,6 +154,8 @@ echo '[PASS] packaged production Mixins CLASS-retention verification'
 find "$ROOT/minecraft-1.12.2/runtime-smoke/src/main/java" -name '*.java' | sort > "$OUT/runtime-smoke-sources.txt"
 javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$JAR:$KOTLIN_CP" -d "$OUT/runtime-smoke" @"$OUT/runtime-smoke-sources.txt"
 java -ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$JAR:$KOTLIN_CP:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.LegacyForgeSmokeTest
+java -ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$JAR:$KOTLIN_CP:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.ProjectileEmitterSmokeTest
+java -ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$JAR:$KOTLIN_CP:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.DirectPathDiagnosticSmokeTest
 find "$ROOT/minecraft-1.12.2/srg-gui-smoke/src/main/java" -name '*.java' | sort > "$OUT/srg-gui-smoke-sources.txt"
 javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$JAR:$KOTLIN_CP" -d "$OUT/srg-gui-smoke" @"$OUT/srg-gui-smoke-sources.txt"
 ( cd "$OUT/srg-gui-smoke-work" && java -ea -cp "$OUT/srg-gui-smoke:$OUT/forge-stubs:$JAR:$KOTLIN_CP:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.SrgGuiRuntimeSmokeTest )

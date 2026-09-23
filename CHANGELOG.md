@@ -19,6 +19,19 @@
 - Routed the Minecraft 1.12.2 production capture path through that atomic frame boundary: listener state and immutable active-source seeds are frozen with the captured scene before asynchronous room/reflection work, so delayed source scheduling cannot mix geometry/listener state from one capture with live source state from a later tick; generation guards still discard stopped/replaced sources before queueing.
 - Closed the late-source race introduced by that stricter frame ownership: when a Paulscode source starts before the current room/reflection frame is full-ready, the runtime requests one coalesced source-frame refresh on the next client tick so the source is solved from a newly coherent scene/listener/source frame instead of starving or being mixed into an older frame.
 
+## 0.3.0-rc20 (work in progress)
+
+- Restored bounded vanilla projectile flight emitters for arrows, throwable entities, fireballs, llama spit and shulker bullets. Flight audio is an ordinary Minecraft `MovingSound`, so it traverses the normal SoundHandler -> Paulscode -> Mixin -> `LegacySoundHook` -> Acoustic Shaders path. Third-party projectile subclasses are not given a synthetic duplicate by default.
+- Split projectile semantics into launch / flight / impact: launch and impact remain transient while entity-derived flight sources preserve velocity metadata and Doppler sensitivity.
+- Added a probe-only, read-only `LegacyDirectPathDiagnostic` with source-generation ownership so a late asynchronous solve cannot resurrect a diagnostic after source cleanup.
+- Added the mono `acousticshaders:projectile.flight` asset and made projectile lifecycle plus diagnostic race tests mandatory legacy-contract checks.
+- Extended Forge-fluid discovery to `IFluidBlock` and `FluidRegistry.lookupFluidForBlock`, including stable `forge-fluid:<name>` identities, `MEDIUM_ID` overrides and top-down geometry for Forge's negative gaseous fill convention.
+- Strengthened Acoustic Shader Pack hot reload for directory and ZIP packs: an invalid edit retains the last-good runtime and a later valid edit atomically replaces it.
+- Added an advanced explosion/projectile x AIR/WATER/LAVA matrix, bringing the current portable suites to 54 headless + 39 advanced tests.
+- Added strict real-SRG compile probes for a real `EntityTippedArrow` gameplay path and five TNT WATER/LAVA scenarios; `dev-verify.sh` requires both whenever the pinned official Minecraft/MCPConfig/Forge inputs are supplied.
+- Removed the historical fixed production-class count from the RFG-reobf-equivalent check. It now requires exact equality with the already verified production class set and requires the new projectile/diagnostic/resources in the audit JAR.
+- Release metadata/tooling now targets `0.3.0-rc20`. RC20 is not declared final until the exact Kotlin 2.4.0 clean release chain and remaining physical client/hardware gates are rerun on this tree.
+
 ## 0.3.0-rc19
 
 - Added an offline official-binary Forge/SRG validation layer: Forge 14.23.5.2864 event/GUI ABI is audited directly, the official Minecraft 1.12.2 client plus MCPConfig are remapped to SRG names, production reflection symbols are checked against real owners, and all Forge/Mixin-facing Kotlin classes compile/link as Java-8 bytecode without Minecraft/Forge stubs.

@@ -10,7 +10,7 @@ class MediumRule(
     private val value: String,
     private val medium: AcousticMedium
 ) {
-    enum class MatchKind { STATE_ID, REGISTRY_ID, GLOB, TAG, DICTIONARY_PREFIX, DICTIONARY_EXACT }
+    enum class MatchKind { STATE_ID, REGISTRY_ID, MEDIUM_ID, GLOB, TAG, DICTIONARY_PREFIX, DICTIONARY_EXACT }
 
     fun priority(): Int = priority
     fun kind(): MatchKind = kind
@@ -21,11 +21,14 @@ class MediumRule(
     fun matches(descriptor: MaterialDescriptor): Boolean = when (kind) {
         MatchKind.STATE_ID -> value == descriptor.stateId()
         MatchKind.REGISTRY_ID -> value == descriptor.registryId()
+        MatchKind.MEDIUM_ID -> false // resolved against the platform-inferred medium, not block metadata
         MatchKind.GLOB -> glob(value, descriptor.stateId()) || glob(value, descriptor.registryId())
         MatchKind.TAG -> descriptor.semanticTags().contains(value)
         MatchKind.DICTIONARY_EXACT -> descriptor.dictionaryNames().contains(value)
         MatchKind.DICTIONARY_PREFIX -> descriptor.dictionaryNames().any { it.startsWith(value) }
     }
+
+    fun matchesMediumId(mediumId: String): Boolean = kind == MatchKind.MEDIUM_ID && value == mediumId
 
     companion object {
         private fun glob(pattern: String, text: String): Boolean {

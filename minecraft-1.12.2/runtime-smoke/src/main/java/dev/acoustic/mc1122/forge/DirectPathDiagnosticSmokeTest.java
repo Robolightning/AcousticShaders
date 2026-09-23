@@ -1,0 +1,6 @@
+package dev.acoustic.mc1122.forge;
+import dev.acoustic.core.passes.DirectPathResult;
+public final class DirectPathDiagnosticSmokeTest{
+ private static void check(boolean v,String m){if(!v)throw new AssertionError(m);}
+ public static void main(String[]args){System.setProperty("acousticshaders.probe.directPath","true");LegacyDirectPathDiagnostic.clear();float[] t=new float[]{.1f,.2f,.3f,.4f,.5f,.6f,.7f,.8f};DirectPathResult r=new DirectPathResult(5,0.02,t,1,0.5,2.0,3.0,2,"water","air");LegacyDirectPathDiagnostic.arm(7,11);LegacyDirectPathDiagnostic.publish(7,11,r);LegacyDirectPathDiagnostic.Snapshot s=LegacyDirectPathDiagnostic.snapshot(7);check(s!=null&&s.getGeneration()==11&&s.getMediumBoundaryCount()==2&&s.getLiquidMeters()==3.0,"publish");LegacyDirectPathDiagnostic.disarm(7);check(LegacyDirectPathDiagnostic.snapshot(7)==null,"disarm");LegacyDirectPathDiagnostic.publish(7,11,r);check(LegacyDirectPathDiagnostic.snapshot(7)==null,"late solve resurrected diagnostic");LegacyDirectPathDiagnostic.arm(7,12);LegacyDirectPathDiagnostic.publish(7,11,r);check(LegacyDirectPathDiagnostic.snapshot(7)==null,"stale generation accepted");LegacyDirectPathDiagnostic.publish(7,12,r);check(LegacyDirectPathDiagnostic.snapshot(7)!=null,"current generation rejected");System.out.println("PASS: direct-path diagnostic generation/disarm late-solve guard");}
+}

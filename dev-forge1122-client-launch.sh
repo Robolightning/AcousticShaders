@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"; cd "$ROOT"
 : "${ACOUSTIC_WINDOWS_JAVA8:?set ACOUSTIC_WINDOWS_JAVA8}"
 : "${ACOUSTIC_MIXINBOOTER_JAR:?set ACOUSTIC_MIXINBOOTER_JAR}"
 : "${ACOUSTIC_FORGELIN_CONTINUOUS_JAR:?set ACOUSTIC_FORGELIN_CONTINUOUS_JAR}"
-MOD_JAR="${ACOUSTIC_MOD_JAR:-$ROOT/dist/acoustic-shaders-mc1122-0.3.0-rc19.jar}"
+MOD_JAR="${ACOUSTIC_MOD_JAR:-$ROOT/dist/acoustic-shaders-mc1122-0.3.0-rc20.jar}"
 OUT="${ACOUSTIC_CLIENT_OUT:-$ROOT/out/forge1122-client-launch}"
 BOOT_LEVEL="${ACOUSTIC_CLIENT_BOOT_LEVEL:-init}"
 BOOT_TIMEOUT="${ACOUSTIC_CLIENT_BOOT_TIMEOUT:-120}"
@@ -18,6 +18,7 @@ MIXIN_EXPORT="${ACOUSTIC_CLIENT_MIXIN_EXPORT:-0}"
 SOUND_EVENT_PROBE_JAR="${ACOUSTIC_CLIENT_SOUND_EVENT_PROBE_JAR:-}"
 REQUIRE_SOUND_EVENT_PROBE="${ACOUSTIC_CLIENT_REQUIRE_SOUND_EVENT_PROBE:-0}"
 EXPECTED_MOD_COUNT="${ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT:-8}"
+PROBE_SUCCESS_MARKER="${ACOUSTIC_CLIENT_PROBE_SUCCESS_MARKER:-ACOUSTIC-REAL-MINECRAFT-SOUND-EVENT-OK}"
 CLIENT_PROFILE="${ACOUSTIC_CLIENT_PROFILE:-}"
 CLIENT_COMPUTE_BACKEND="${ACOUSTIC_CLIENT_COMPUTE_BACKEND:-}"
 CLIENT_RAY_COMPUTE_BACKEND="${ACOUSTIC_CLIENT_RAY_COMPUTE_BACKEND:-}"
@@ -28,6 +29,7 @@ case "$MIXIN_EXPORT" in 0|1) ;; *) echo "ERROR: ACOUSTIC_CLIENT_MIXIN_EXPORT mus
 case "$REQUIRE_SOUND_EVENT_PROBE" in 0|1) ;; *) echo "ERROR: ACOUSTIC_CLIENT_REQUIRE_SOUND_EVENT_PROBE must be 0 or 1" >&2; exit 1;; esac
 case "$REQUIRE_CUDA_FDTD" in 0|1) ;; *) echo "ERROR: ACOUSTIC_CLIENT_REQUIRE_CUDA_FDTD must be 0 or 1" >&2; exit 1;; esac
 [[ "$EXPECTED_MOD_COUNT" =~ ^[1-9][0-9]*$ ]] || { echo "ERROR: ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT must be a positive integer" >&2; exit 1; }
+[[ "$PROBE_SUCCESS_MARKER" != *$'\n'* && -n "$PROBE_SUCCESS_MARKER" ]] || { echo "ERROR: ACOUSTIC_CLIENT_PROBE_SUCCESS_MARKER must be one non-empty line" >&2; exit 1; }
 [[ "$BOOT_TIMEOUT" =~ ^[0-9]+$ ]] && (( BOOT_TIMEOUT > 0 )) || { echo 'ERROR: ACOUSTIC_CLIENT_BOOT_TIMEOUT must be a positive integer' >&2; exit 1; }
 if [[ -n "$CLIENT_PROFILE" && ! "$CLIENT_PROFILE" =~ ^[A-Za-z0-9_-]+$ ]]; then
   echo "ERROR: unsafe ACOUSTIC_CLIENT_PROFILE: $CLIENT_PROFILE" >&2; exit 1
@@ -115,8 +117,8 @@ done
 
 LOG="$OUT/logs/client-console.log"
 XVFB_LOG="$OUT/logs/xvfb.log"
-printf '[Forge1122] starting real Windows Forge 1.12.2 client level=%s nullAudio=%s reuseGame=%s mixinExport=%s soundEventProbe=%s expectedMods=%s profile=%s wave=%s rays=%s requireCudaFdtd=%s\n' \
-  "$BOOT_LEVEL" "$NULL_AUDIO" "$REUSE_GAME" "$MIXIN_EXPORT" "$REQUIRE_SOUND_EVENT_PROBE" "$EXPECTED_MOD_COUNT" \
+printf '[Forge1122] starting real Windows Forge 1.12.2 client level=%s nullAudio=%s reuseGame=%s mixinExport=%s soundEventProbe=%s expectedMods=%s probeMarker=%s profile=%s wave=%s rays=%s requireCudaFdtd=%s\n' \
+  "$BOOT_LEVEL" "$NULL_AUDIO" "$REUSE_GAME" "$MIXIN_EXPORT" "$REQUIRE_SOUND_EVENT_PROBE" "$EXPECTED_MOD_COUNT" "$PROBE_SUCCESS_MARKER" \
   "${CLIENT_PROFILE:-default}" "${CLIENT_COMPUTE_BACKEND:-default}" "${CLIENT_RAY_COMPUTE_BACKEND:-default}" "$REQUIRE_CUDA_FDTD"
 
 MIXIN_JVM_ARGS=()
@@ -186,7 +188,7 @@ rm -f "$CLIENT_PID_FILE"
 SUPERVISOR_WALL_TIMEOUT=$((BOOT_TIMEOUT + 5))
 set +e
 timeout --signal=TERM --kill-after=2s "${SUPERVISOR_WALL_TIMEOUT}s" \
-  python3 - "$LOG" "$CLIENT_PID_FILE" "$OUT/game" "$BOOT_LEVEL" "$BOOT_TIMEOUT" "$NULL_AUDIO" "$REQUIRE_SOUND_EVENT_PROBE" "$EXPECTED_MOD_COUNT" "${CMD[@]}" <<'PY'
+  python3 - "$LOG" "$CLIENT_PID_FILE" "$OUT/game" "$BOOT_LEVEL" "$BOOT_TIMEOUT" "$NULL_AUDIO" "$REQUIRE_SOUND_EVENT_PROBE" "$EXPECTED_MOD_COUNT" "$PROBE_SUCCESS_MARKER" "${CMD[@]}" <<'PY'
 import os
 import pathlib
 import re
@@ -202,7 +204,8 @@ timeout_s = int(sys.argv[5])
 null_audio = sys.argv[6] == '1'
 sound_event_probe_required = sys.argv[7] == '1'
 expected_mod_count = int(sys.argv[8])
-cmd = sys.argv[9:]
+probe_success_marker = sys.argv[9]
+cmd = sys.argv[10:]
 
 env = os.environ.copy()
 if null_audio:
@@ -212,12 +215,12 @@ fatal_re = re.compile(
     r'NoSuchMethodError|NoClassDefFoundError|ClassNotFoundException|UnsupportedClassVersionError|'
     r'MixinApplyError|MixinTransformerError|LWJGLException: Failed to create window|'
     r'Exception in thread "(?:main|Client thread)"|Game crashed!|Minecraft has crashed|'
-    r'ACOUSTIC-SOUND-EVENT-PROBE-FAIL'
+    r'ACOUSTIC-[A-Z0-9-]*PROBE-FAIL'
 )
 init_markers = (
     'MinecraftForge v14.23.5.2864 Initialized',
     f'Forge Mod Loader has identified {expected_mod_count} mods to load',
-    'Added acoustic-shaders-mc1122-0.3.0-rc19.jar to the classloader',
+    'Added acoustic-shaders-mc1122-0.3.0-rc20.jar to the classloader',
     'Acoustic Shaders Default Materials',
     'textures-atlas',
     '[AcousticShaders] initialized for Minecraft 1.12.2',
@@ -260,7 +263,7 @@ with log_path.open('ab', buffering=0) as stream:
             break
         reached = full_seen(text) if level == 'full' else init_seen(text)
         if sound_event_probe_required:
-            reached = reached and 'ACOUSTIC-REAL-MINECRAFT-SOUND-EVENT-OK' in text
+            reached = reached and probe_success_marker in text
         if reached:
             if null_audio and not audio_seen(text):
                 time.sleep(0.25)
@@ -298,11 +301,11 @@ if [[ "$SUPERVISOR_RC" == 124 || "$SUPERVISOR_RC" == 137 || "$SUPERVISOR_RC" == 
 fi
 
 if [[ "$SUPERVISOR_RC" == 0 && "$REQUIRE_SOUND_EVENT_PROBE" == 1 ]]; then
-  grep -F 'ACOUSTIC-REAL-MINECRAFT-SOUND-EVENT-OK' "$LOG" >/dev/null || {
-    echo 'ERROR: required real Minecraft SoundHandler event probe marker missing' >&2
+  grep -F -- "$PROBE_SUCCESS_MARKER" "$LOG" >/dev/null || {
+    echo "ERROR: required real Minecraft probe marker missing: $PROBE_SUCCESS_MARKER" >&2
     exit 1
   }
-  printf '%s\n' '[PASS] real Minecraft SoundHandler event executed injected LegacySoundHook play/move/cleanup callbacks'
+  printf '[PASS] real Minecraft client probe completed: %s\n' "$PROBE_SUCCESS_MARKER"
 fi
 
 if [[ "$SUPERVISOR_RC" == 0 && "$MIXIN_EXPORT" == 1 ]]; then

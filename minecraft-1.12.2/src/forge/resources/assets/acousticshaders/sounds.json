@@ -1,0 +1,8 @@
+{
+  "projectile.flight": {
+    "category": "neutral",
+    "sounds": [
+      { "name": "acousticshaders:projectile/flight", "stream": false }
+    ]
+  }
+}

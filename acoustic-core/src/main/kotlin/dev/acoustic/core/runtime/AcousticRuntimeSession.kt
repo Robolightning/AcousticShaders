@@ -15,7 +15,7 @@ import dev.acoustic.core.rir.ImpulseResponse
 /** Headless/runtime facade used by platform adapters. */
 class AcousticRuntimeSession(pack: LoadedShaderPack, profile: String, workers: Int) : AutoCloseable {
     private val executor = ParallelPipelineExecutor(workers)
-    private val pipeline: DefaultPipeline = StandardPipelineCompiler().compile(pack, profile)
+    private val pipeline: DefaultPipeline = StandardPipelineCompiler(AcousticPassRegistry.snapshot()).compile(pack, profile)
 
     @Throws(Exception::class)
     fun process(scene: AcousticScene, source: Vec3, listener: Vec3): FrameResult =

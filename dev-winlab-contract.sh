@@ -283,10 +283,10 @@ PYZIP
     "$RUN" wine "$WINDOWS_JAVA" -ea -cp "$WINDOWS_TEST_CP" dev.acoustic.tests.HeadlessTestSuite
   grep -F 'PASS: 54 headless tests' "$OUT/windows-java-headless.log" >/dev/null
 
-  printf '%s\n' '[WinLab] complete 35-test advanced release suite on Windows Java 8'
-  run_probe 'Windows Java 8 35-test advanced release suite' 180 "$OUT/windows-java-advanced.log" \
+  printf '%s\n' '[WinLab] complete 39-test advanced release suite on Windows Java 8'
+  run_probe 'Windows Java 8 39-test advanced release suite' 180 "$OUT/windows-java-advanced.log" \
     "$RUN" wine "$WINDOWS_JAVA" -ea -cp "$WINDOWS_TEST_CP" dev.acoustic.tests.AdvancedReleaseTestSuite
-  grep -F 'PASS: 35 advanced release tests' "$OUT/windows-java-advanced.log" >/dev/null
+  grep -F 'PASS: 39 advanced release tests' "$OUT/windows-java-advanced.log" >/dev/null
 else
   printf '%s\n' '[SKIP] ACOUSTIC_WINLAB_JAVA is unset; Windows Java 8 DSP execution was not requested'
 fi

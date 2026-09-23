@@ -157,7 +157,7 @@ class AcousticShadersForgeMod {
 
     companion object {
         const val MODID = "acousticshaders"
-        const val VERSION = "0.3.0-rc19"
+        const val VERSION = "0.3.0-rc20"
         private const val SOUND_OPTIONS_BUTTON = 0xAC51
         @Volatile private var ACTIVE_RUNTIME: LegacyClientRuntime? = null
 

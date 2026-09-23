@@ -20,6 +20,7 @@ import dev.acoustic.api.math.Vec3;
 import dev.acoustic.api.pipeline.AcceleratedPass;
 import dev.acoustic.api.pipeline.Pass;
 import dev.acoustic.api.pipeline.PassContext;
+import dev.acoustic.api.pipeline.ResourceKey;
 import dev.acoustic.api.pipeline.ParallelWorkExecutor;
 import dev.acoustic.core.compute.FdtdBackendRegistry;
 import dev.acoustic.core.compute.FdtdExternalBackend;
@@ -29,10 +30,15 @@ import dev.acoustic.core.compute.GeometricExternalBackend;
 import dev.acoustic.core.material.MaterialResolverCompiler;
 import dev.acoustic.core.medium.MediumResolver;
 import dev.acoustic.core.pack.LoadedShaderPack;
+import dev.acoustic.core.pack.ShaderPackStackComposer;
+import dev.acoustic.core.pack.ShaderPackValidator;
+import dev.acoustic.core.pack.ShaderPackManifest;
+import dev.acoustic.core.pack.PipelineDefinition;
 import dev.acoustic.core.pack.ShaderPackLoader;
 import dev.acoustic.core.passes.LegacyAcousticEvaluator;
 import dev.acoustic.core.passes.LegacyEffectParameters;
 import dev.acoustic.core.passes.HybridLegacyProjector;
+import dev.acoustic.core.passes.HybridResponse;
 import dev.acoustic.core.passes.LegacyRoomEstimate;
 import dev.acoustic.core.passes.EnvironmentRayPass;
 import dev.acoustic.core.passes.ReflectionField;
@@ -42,12 +48,16 @@ import dev.acoustic.core.pipeline.MapPassContext;
 import dev.acoustic.core.pipeline.ParallelPipelineExecutor;
 import dev.acoustic.core.pipeline.DefaultPipeline;
 import dev.acoustic.core.runtime.AcousticRuntimeSession;
+import dev.acoustic.core.runtime.AcousticPassRegistry;
+import dev.acoustic.core.runtime.PassFactory;
+import dev.acoustic.core.runtime.ResolvedProfile;
 import dev.acoustic.core.runtime.StandardPipelineCompiler;
 import dev.acoustic.mc1122.LegacyBlockSample;
 import dev.acoustic.mc1122.LegacyPerformanceTuning;
 import dev.acoustic.mc1122.LegacyRuntimeConfig;
 import dev.acoustic.mc1122.LegacySceneCapture;
 import dev.acoustic.mc1122.LegacyShaderPackRuntime;
+import dev.acoustic.mc1122.LegacyShaderPackFingerprint;
 import dev.acoustic.mc1122.LegacyWorldAccess;
 import dev.acoustic.testkit.VoxelTestScene;
 import java.nio.file.Files;
@@ -100,10 +110,14 @@ public final class AdvancedReleaseTestSuite {
         testSourceProfileParsingAndResolution();
         testResourcePackSourceProfileOverlay();
         testSourceProfileAffectsLegacyProjection();
+        testExplosionProjectileLiquidCrossProduct();
+        testShaderPlatformReferenceCustomAndCombinedModes();
+        testShaderStackCapabilityAndIdentityValidation();
+        testShaderPackContentFingerprint();
         testExplicitNoShaderSelection();
         testHybridAutoCrossoverHonorsWaveTrust();
         testHybridTimeDomainWaveEntersRir();
-        System.out.println("PASS: 35 advanced release tests");
+        System.out.println("PASS: 39 advanced release tests");
     }
 
     private static void testLegacyEffectProjection() {
@@ -454,7 +468,7 @@ public final class AdvancedReleaseTestSuite {
     }
     private static void testLegacyLivePipelineStopsAtHybrid() throws Exception {
         LegacyShaderPackRuntime runtime=LegacyShaderPackRuntime.load(Paths.get("examples"),new LegacyRuntimeConfig("reference-pack","HIGH",18,10,10,24,true,false));
-        java.util.List<Pass> passes=runtime.livePipeline().passes();if(passes.isEmpty()||!"standard.hybrid".equals(passes.get(passes.size()-1).id()))throw new AssertionError("legacy live pipeline must terminate at hybrid response");
+        java.util.List<Pass> passes=runtime.livePipeline().passes();if(passes.isEmpty()||!passes.get(passes.size()-1).writes().contains(StandardResources.HYBRID_RESPONSE))throw new AssertionError("legacy live pipeline must terminate at the typed response.hybrid writer");
         for(Pass pass:passes)if("standard.impulse_response".equals(pass.id()))throw new AssertionError("legacy EFX live pipeline should not allocate full RIR");
         if(runtime.listenerInvariantPipeline().passes().size()!=1||!"standard.environment_rays".equals(runtime.listenerInvariantPipeline().passes().get(0).id()))throw new AssertionError("listener-invariant reflection stage was not isolated");
         boolean hasRir=false;for(Pass pass:runtime.sourcePipeline().passes()){if("standard.environment_rays".equals(pass.id()))throw new AssertionError("source pipeline redundantly contains shared environment rays");if("standard.impulse_response".equals(pass.id()))hasRir=true;}
@@ -511,17 +525,20 @@ public final class AdvancedReleaseTestSuite {
         Path resource=Files.createTempDirectory("acoustic-medium-resourcepack"),dir=resource.resolve("assets/example/acoustic_media");Files.createDirectories(dir);Files.write(dir.resolve("media.json"),json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         java.util.List<AcousticMediumResourceLoader.Entry> entries=new AcousticMediumResourceLoader().load(resource);if(entries.size()!=1||entries.get(0).pack().rules().size()!=1)throw new AssertionError("resource-pack acoustic medium overlay not discovered");MediumResolver mediumResolver=new MediumResolver(entries.get(0).pack().rules());dev.acoustic.api.environment.AcousticMedium oil=mediumResolver.resolve(new MaterialDescriptor("mod:oil","mod:oil#meta=0",Collections.<String>emptySet(),Collections.<String>emptySet(),false),dev.acoustic.api.environment.AcousticMedia.WATER);if(!"test:oil".equals(oil.id())||Math.abs(oil.speedOfSoundMetersPerSecond()-1320)>1e-9)throw new AssertionError("resource-pack medium did not resolve custom propagation properties");
         Path shader=Files.createTempDirectory("acoustic-medium-shaderpack");Files.write(shader.resolve("manifest.json"),"{\"format\":1,\"spec\":\"0.3\",\"id\":\"test:medium\",\"name\":\"Medium Test\",\"requires\":[],\"optional\":[]}".getBytes(java.nio.charset.StandardCharsets.UTF_8));Files.write(shader.resolve("pipeline.json"),"{\"format\":1,\"passes\":[]}".getBytes(java.nio.charset.StandardCharsets.UTF_8));Path media=shader.resolve("media");Files.createDirectories(media);Files.write(media.resolve("oil.json"),json.getBytes(java.nio.charset.StandardCharsets.UTF_8));LoadedShaderPack loaded=new ShaderPackLoader().loadDirectory(shader);if(loaded.mediumPacks().size()!=1||!loaded.mediumPacks().containsKey("oil.json"))throw new AssertionError("shader-pack media/ overlay not loaded");
+        String byMediumId="{\"media\":{\"test:precise-oil\":{\"density_kg_m3\":870,\"speed_m_s\":1350,\"attenuation_db_per_km\":[0.2,0.3,0.5,0.8,1.2,2,4,8]}},\"rules\":[{\"priority\":900,\"kind\":\"MEDIUM_ID\",\"match\":\"forge-fluid:oil\",\"medium\":\"test:precise-oil\"}]}";dev.acoustic.core.pack.MediumPack idPack=dev.acoustic.core.pack.MediumPack.parse(byMediumId);MediumResolver idResolver=new MediumResolver(idPack.rules());dev.acoustic.api.environment.AcousticMedium inferredOil=new dev.acoustic.api.environment.AcousticMedium("forge-fluid:oil",850,1482,new float[8]);dev.acoustic.api.environment.AcousticMedium precise=idResolver.resolve(new MaterialDescriptor("mod:oil_block","mod:oil_block#meta=0",Collections.<String>emptySet(),Collections.<String>emptySet(),false),inferredOil);if(!"test:precise-oil".equals(precise.id()))throw new AssertionError("MEDIUM_ID rule did not override shared Forge-fluid identity");
         java.util.List<Path> all=new java.util.ArrayList<Path>();Files.walk(resource).forEach(all::add);Collections.reverse(all);for(Path x:all)Files.deleteIfExists(x);all.clear();Files.walk(shader).forEach(all::add);Collections.reverse(all);for(Path x:all)Files.deleteIfExists(x);
         System.out.println("[PASS] ordinary resource-pack + shader-pack acoustic medium overlay discovery");
     }
 
     private static void testSourceProfileParsingAndResolution(){
         SourceProfilePack pack=SourceProfilePack.parse(DefaultSourceProfiles.json());SourceProfileResolver resolver=new SourceProfileResolver(pack.rules(),AcousticSourceProfile.GENERIC);
-        AcousticSourceProfile explosion=resolver.resolve("minecraft/sounds/entity/generic/explosion1.ogg"),arrow=resolver.resolve("minecraft/sounds/entity/arrow/shoot1.ogg"),music=resolver.resolve("minecraft/music/game.ogg");
+        AcousticSourceProfile explosion=resolver.resolve("minecraft/sounds/entity/generic/explosion1.ogg"),launch=resolver.resolve("minecraft/sounds/entity/arrow/shoot1.ogg"),legacyLaunch=resolver.resolve("minecraft/sounds/random/bow1.ogg"),flight=resolver.resolve("acousticshaders/sounds/projectile.flight.ogg"),arrowFlight=resolver.resolve("minecraft/sounds/entity/arrow/fly.ogg"),impact=resolver.resolve("minecraft/sounds/entity/arrow/hit1.ogg"),legacyImpact=resolver.resolve("minecraft/sounds/random/bowhit1.ogg"),music=resolver.resolve("minecraft/music/game.ogg");
         if(!"explosion".equals(explosion.category())||explosion.lateScale()<=1f||explosion.emission(0)<=explosion.emission(6))throw new AssertionError("explosion source profile invalid");
-        if(!"projectile".equals(arrow.category())||arrow.dopplerScale()<=0f||arrow.movementSensitivity()<=1f)throw new AssertionError("projectile source profile invalid");
+        if(!"projectile_launch".equals(launch.category())||launch.dopplerScale()!=0f||!"projectile_launch".equals(legacyLaunch.category())||legacyLaunch.dopplerScale()!=0f)throw new AssertionError("projectile launch must be transient without Doppler");
+        if(!"projectile_flight".equals(flight.category())||flight.dopplerScale()<=0f||flight.movementSensitivity()<=1f||!"projectile_flight".equals(arrowFlight.category()))throw new AssertionError("projectile flight profile invalid");
+        if(!"impact".equals(impact.category())||!"impact".equals(legacyImpact.category()))throw new AssertionError("projectile impact profile invalid");
         if(!music.bypassAcoustics())throw new AssertionError("music must bypass world acoustics by default");
-        System.out.println("[PASS] source-category profile parsing + explosion/projectile/nonspatial inference");
+        System.out.println("[PASS] source-category launch/flight/impact + explosion/nonspatial inference");
     }
 
     private static void testResourcePackSourceProfileOverlay() throws Exception {
@@ -536,6 +553,124 @@ public final class AdvancedReleaseTestSuite {
         AcousticRuntimeSession session=new AcousticRuntimeSession(shader,"HIGH",2);try{AcousticRuntimeSession.FrameResult frame=session.process(room,new Vec3(4,2,0),new Vec3(0,2,0));HybridLegacyProjector projector=new HybridLegacyProjector();LegacyEffectParameters generic=projector.project(frame.response(),dev.acoustic.core.passes.LegacyEffectTuning.DEFAULT,AcousticSourceProfile.GENERIC),explosion=projector.project(frame.response(),dev.acoustic.core.passes.LegacyEffectTuning.DEFAULT,resolver.resolve("entity/explosion.ogg")),projectile=projector.project(frame.response(),dev.acoustic.core.passes.LegacyEffectTuning.DEFAULT,resolver.resolve("entity/arrow/fly.ogg"));if(explosion.sendGain()<=generic.sendGain())throw new AssertionError("explosion should excite room more strongly");if(projectile.sendGain()>=generic.sendGain())throw new AssertionError("projectile should use a shorter/drier room response");}
         finally{session.close();}System.out.println("[PASS] source category modifies legacy projection without changing scene physics");
     }
+
+
+
+    private static void testExplosionProjectileLiquidCrossProduct() throws Exception {
+        LoadedShaderPack pack=new ShaderPackLoader().loadDirectory(Paths.get("examples/reference-pack"));
+        SourceProfileResolver resolver=new SourceProfileResolver(SourceProfilePack.parse(DefaultSourceProfiles.json()).rules(),AcousticSourceProfile.GENERIC);
+        AcousticSourceProfile explosion=resolver.resolve("minecraft/sounds/entity/generic/explosion1.ogg");
+        AcousticSourceProfile projectile=resolver.resolve("acousticshaders/sounds/projectile.flight.ogg");
+        if(!"explosion".equals(explosion.category())||!"projectile_flight".equals(projectile.category()))throw new AssertionError("cross-product source profiles unavailable");
+
+        VoxelTestScene.Builder waterFullBuilder=VoxelTestScene.builder(),lavaFullBuilder=VoxelTestScene.builder(),waterSlabBuilder=VoxelTestScene.builder(),lavaSlabBuilder=VoxelTestScene.builder(),airToWaterBuilder=VoxelTestScene.builder();
+        for(int x=0;x<=9;x++){waterFullBuilder.water(x,0,0);lavaFullBuilder.lava(x,0,0);if(x>=5)airToWaterBuilder.water(x,0,0);}
+        for(int x=4;x<=5;x++){waterSlabBuilder.water(x,0,0);lavaSlabBuilder.lava(x,0,0);}
+        Object[][] cases=new Object[][]{
+            {"water-water",waterFullBuilder.build(),new Vec3(.5,.5,.5),new Vec3(9.5,.5,.5),dev.acoustic.api.environment.AcousticMedia.WATER.id(),dev.acoustic.api.environment.AcousticMedia.WATER.id(),Integer.valueOf(0)},
+            {"lava-lava",lavaFullBuilder.build(),new Vec3(.5,.5,.5),new Vec3(9.5,.5,.5),dev.acoustic.api.environment.AcousticMedia.LAVA.id(),dev.acoustic.api.environment.AcousticMedia.LAVA.id(),Integer.valueOf(0)},
+            {"air-water-air",waterSlabBuilder.build(),new Vec3(.5,.5,.5),new Vec3(9.5,.5,.5),dev.acoustic.api.environment.AcousticMedia.AIR.id(),dev.acoustic.api.environment.AcousticMedia.AIR.id(),Integer.valueOf(2)},
+            {"air-lava-air",lavaSlabBuilder.build(),new Vec3(.5,.5,.5),new Vec3(9.5,.5,.5),dev.acoustic.api.environment.AcousticMedia.AIR.id(),dev.acoustic.api.environment.AcousticMedia.AIR.id(),Integer.valueOf(2)},
+            {"air-water",airToWaterBuilder.build(),new Vec3(.5,.5,.5),new Vec3(9.5,.5,.5),dev.acoustic.api.environment.AcousticMedia.AIR.id(),dev.acoustic.api.environment.AcousticMedia.WATER.id(),Integer.valueOf(1)}
+        };
+        float[] waterCross=null,lavaCross=null;
+        AcousticRuntimeSession session=new AcousticRuntimeSession(pack,"POTATO",2);
+        try{
+            for(AcousticSourceProfile profile:Arrays.asList(explosion,projectile)){
+                Vec3 velocity="projectile_flight".equals(profile.category())?new Vec3(3.0,-.25,.5):new Vec3(0,0,0);
+                for(Object[] c:cases){
+                    String name=(String)c[0];dev.acoustic.api.scene.AcousticScene scene=(dev.acoustic.api.scene.AcousticScene)c[1];Vec3 source=(Vec3)c[2],listener=(Vec3)c[3];
+                    AcousticRuntimeSession.FrameResult frame=session.process(scene,source,listener,"test:"+profile.category()+":"+name,profile,1f,new Vec3(0,0,1),new Vec3(0,1,0),velocity,new Vec3(0,0,0));
+                    dev.acoustic.core.passes.DirectPathResult direct=frame.response().direct();if(direct==null)throw new AssertionError("missing direct path for "+profile.category()+" "+name);
+                    if(!((String)c[4]).equals(direct.sourceMediumId)||!((String)c[5]).equals(direct.listenerMediumId))throw new AssertionError("wrong media for "+profile.category()+" "+name+": "+direct.sourceMediumId+" -> "+direct.listenerMediumId);
+                    if(direct.mediumBoundaryCount!=((Integer)c[6]).intValue())throw new AssertionError("wrong interface count for "+profile.category()+" "+name+": "+direct.mediumBoundaryCount);
+                    if(direct.liquidMeters<=0.0||direct.airMeters<0.0)throw new AssertionError("invalid medium lengths for "+profile.category()+" "+name+": air="+direct.airMeters+" liquid="+direct.liquidMeters);
+                    if(direct.transmission.length!=dev.acoustic.api.material.FrequencyBands.COUNT)throw new AssertionError("wrong transmission band count");
+                    for(float v:direct.transmission)if(!Float.isFinite(v)||v<0f||v>1.000001f)throw new AssertionError("non-finite/out-of-range transmission for "+profile.category()+" "+name+": "+v);
+                    if(frame.sourceVelocity().distance(velocity)>1e-9)throw new AssertionError("source velocity metadata lost for "+profile.category()+" "+name);
+                    if(!profile.category().equals(frame.sourceBehavior().category()))throw new AssertionError("source behavior category lost for "+profile.category()+" "+name);
+                    if("projectile_flight".equals(profile.category())&&frame.sourceBehavior().dopplerScale()<=0f)throw new AssertionError("projectile Doppler behavior lost in liquid cross-product");
+                    if("explosion".equals(profile.category())&&frame.sourceVelocity().length()>1e-12)throw new AssertionError("stationary explosion acquired motion metadata");
+                    if("explosion".equals(profile.category())&&"air-water-air".equals(name))waterCross=direct.transmission.clone();
+                    if("explosion".equals(profile.category())&&"air-lava-air".equals(name))lavaCross=direct.transmission.clone();
+                }
+            }
+        } finally { session.close(); }
+        if(waterCross==null||lavaCross==null)throw new AssertionError("cross-medium spectra were not captured");
+        boolean differs=false;for(int i=0;i<waterCross.length;i++)if(Math.abs(waterCross[i]-lavaCross[i])>1e-7f){differs=true;break;}if(!differs)throw new AssertionError("WATER and LAVA cross-medium spectra collapsed to one generic liquid result");
+        System.out.println("[PASS] explosion/projectile x AIR/WATER/LAVA direct-path cross-product + velocity metadata");
+    }
+
+    private static void testShaderPlatformReferenceCustomAndCombinedModes() throws Exception {
+        ensureTestShaderPassesRegistered();
+        Path root=Files.createTempDirectory("acoustic-shader-platform");
+        Path reference=root.resolve("reference");copyTree(Paths.get("examples/reference-pack"),reference);
+        Path custom=root.resolve("custom");Files.createDirectories(custom);
+        writeUtf8(custom.resolve("manifest.json"),"{\"format\":1,\"spec\":\"0.3\",\"id\":\"example:custom\",\"name\":\"Custom Acoustic Shader\",\"requires\":[],\"optional\":[]}");
+        writeUtf8(custom.resolve("pipeline.json"),"{\"format\":1,\"passes\":[{\"id\":\"example:source_reflections\"},{\"id\":\"example:constant_hybrid\"}]}");
+        writeUtf8(custom.resolve("acoustic.properties"),"profile.CUSTOM=\nprofile.order=CUSTOM\n");
+        LegacyShaderPackRuntime customRuntime=LegacyShaderPackRuntime.load(root,new LegacyRuntimeConfig(Collections.singletonList("custom"),"CUSTOM",18,10,10,24,true,false,Collections.<String,String>emptyMap()));
+        if(customRuntime.disabled())throw new AssertionError("custom-only shader unexpectedly disabled");
+        if(customRuntime.livePipeline().passes().size()!=1||!"example:constant_hybrid".equals(customRuntime.livePipeline().passes().get(0).id()))throw new AssertionError("custom-only runtime still depends on standard.hybrid: "+customRuntime.livePipeline().passes());
+        if(!customRuntime.listenerInvariantPipeline().passes().isEmpty())throw new AssertionError("source-dependent custom reflection pass was incorrectly precomputed as listener invariant");
+        boolean sourceReflection=false;for(Pass pass:customRuntime.sourcePipeline().passes())if("example:source_reflections".equals(pass.id()))sourceReflection=true;
+        if(!sourceReflection)throw new AssertionError("source-dependent custom reflection stage disappeared from source pipeline");
+
+        Path overlay=root.resolve("overlay");Files.createDirectories(overlay);
+        writeUtf8(overlay.resolve("manifest.json"),"{\"format\":1,\"spec\":\"0.3\",\"id\":\"example:overlay\",\"name\":\"Custom Overlay\",\"requires\":[],\"optional\":[]}");
+        // No acoustic.properties on purpose: overlays are allowed to inherit the lower pack's presets.
+        writeUtf8(overlay.resolve("pipeline.json"),"{\"format\":1,\"passes\":[{\"id\":\"standard.hybrid\",\"enabled\":false},{\"id\":\"example:constant_hybrid\"}]}");
+        LegacyShaderPackRuntime combined=LegacyShaderPackRuntime.load(root,new LegacyRuntimeConfig(Arrays.asList("overlay","reference"),"HIGH",18,10,10,24,true,false,Collections.<String,String>emptyMap()));
+        if(combined.livePipeline().passes().size()!=1||!"example:constant_hybrid".equals(combined.livePipeline().passes().get(0).id()))throw new AssertionError("combined stack did not replace the Reference final stage by typed output contract: "+combined.livePipeline().passes());
+        if(!combined.pack().options().profiles().contains("HIGH"))throw new AssertionError("profile-less overlay did not inherit Reference presets");
+        if(!Arrays.asList("Custom Overlay","Reference Acoustic Shader").equals(combined.stackNames()))throw new AssertionError("shader stack UI order changed: "+combined.stackNames());
+        deleteTree(root);
+        System.out.println("[PASS] acoustic shader platform: Reference-only, custom-only and Reference+profile-less-overlay modes");
+    }
+
+    private static void testShaderStackCapabilityAndIdentityValidation() throws Exception {
+        Path root=Files.createTempDirectory("acoustic-shader-stack-validation");
+        Path base=root.resolve("base"),overlay=root.resolve("overlay"),duplicate=root.resolve("duplicate"),wrongSpec=root.resolve("wrong-spec");
+        Files.createDirectories(base);Files.createDirectories(overlay);Files.createDirectories(duplicate);Files.createDirectories(wrongSpec);
+        writeUtf8(base.resolve("manifest.json"),"{\"format\":1,\"spec\":\"0.3\",\"id\":\"example:base\",\"name\":\"Base\",\"requires\":[\"ray_query\"],\"optional\":[]}");
+        writeUtf8(base.resolve("pipeline.json"),"{\"format\":1,\"passes\":[]}");writeUtf8(base.resolve("acoustic.properties"),"profile.HIGH=\nprofile.order=HIGH\n");
+        writeUtf8(overlay.resolve("manifest.json"),"{\"format\":1,\"spec\":\"0.3\",\"id\":\"example:overlay-cap\",\"name\":\"Overlay\",\"requires\":[\"gpu_compute\"],\"optional\":[\"wave_field\"]}");
+        writeUtf8(overlay.resolve("pipeline.json"),"{\"format\":1,\"passes\":[]}");
+        ShaderPackLoader loader=new ShaderPackLoader();LoadedShaderPack b=loader.loadDirectory(base),o=loader.loadDirectory(overlay);LoadedShaderPack effective=ShaderPackStackComposer.compose(Arrays.asList(b,o));
+        if(!effective.manifest().required().contains(dev.acoustic.api.capability.Capability.RAY_QUERY)||!effective.manifest().required().contains(dev.acoustic.api.capability.Capability.GPU_COMPUTE))throw new AssertionError("effective stack lost layer capability requirements: "+effective.manifest().required());
+        java.util.List<String> issues=new ShaderPackValidator().validate(effective,new dev.acoustic.api.capability.Capabilities(java.util.EnumSet.of(dev.acoustic.api.capability.Capability.RAY_QUERY)));
+        if(issues.isEmpty())throw new AssertionError("effective stack accepted despite missing overlay GPU capability");
+
+        writeUtf8(duplicate.resolve("manifest.json"),"{\"format\":1,\"spec\":\"0.3\",\"id\":\"example:base\",\"name\":\"Duplicate\",\"requires\":[],\"optional\":[]}");writeUtf8(duplicate.resolve("pipeline.json"),"{\"format\":1,\"passes\":[]}");
+        boolean duplicateRejected=false;try{ShaderPackStackComposer.compose(Arrays.asList(b,loader.loadDirectory(duplicate)));}catch(IllegalArgumentException expected){duplicateRejected=true;}if(!duplicateRejected)throw new AssertionError("duplicate shader manifest id was accepted");
+        writeUtf8(wrongSpec.resolve("manifest.json"),"{\"format\":1,\"spec\":\"9.9\",\"id\":\"example:wrong\",\"name\":\"Wrong spec\",\"requires\":[],\"optional\":[]}");writeUtf8(wrongSpec.resolve("pipeline.json"),"{\"format\":1,\"passes\":[]}");
+        boolean specRejected=false;try{ShaderPackStackComposer.compose(Arrays.asList(b,loader.loadDirectory(wrongSpec)));}catch(IllegalArgumentException expected){specRejected=true;}if(!specRejected)throw new AssertionError("mixed shader API specs were accepted in one stack");
+        deleteTree(root);System.out.println("[PASS] stack capability union + duplicate id + mixed-spec fail-closed validation");
+    }
+
+    private static void testShaderPackContentFingerprint() throws Exception {
+        Path root=Files.createTempDirectory("acoustic-shader-fingerprint"),pack=root.resolve("dev-pack");Files.createDirectories(pack);
+        writeUtf8(pack.resolve("manifest.json"),"{\"format\":1,\"spec\":\"0.3\",\"id\":\"example:fingerprint\",\"name\":\"Fingerprint\",\"requires\":[],\"optional\":[]}");
+        writeUtf8(pack.resolve("pipeline.json"),"{\"format\":1,\"passes\":[]}");
+        String a=LegacyShaderPackFingerprint.compute(root,Collections.singletonList("dev-pack"));
+        writeUtf8(pack.resolve("pipeline.json"),"{\"format\":1,\"passes\":[{\"id\":\"example:constant_hybrid\"}]}");
+        String b=LegacyShaderPackFingerprint.compute(root,Collections.singletonList("dev-pack"));if(a.equals(b))throw new AssertionError("directory shader content edit did not alter stack fingerprint");
+        Files.write(pack.resolve("ignored-future-data.bin"),new byte[]{1,2,3,4});String c=LegacyShaderPackFingerprint.compute(root,Collections.singletonList("dev-pack"));if(b.equals(c))throw new AssertionError("future shader-local data was not covered by content fingerprint");
+        deleteTree(root);System.out.println("[PASS] content-based shader-stack fingerprint covers pipeline and future shader-local data");
+    }
+
+    private static void ensureTestShaderPassesRegistered(){
+        if(!AcousticPassRegistry.registered().containsKey("example:constant_hybrid")){
+            AcousticPassRegistry.register("example:constant_hybrid",new PassFactory(){public Pass create(PipelineDefinition.PassDefinition definition,ResolvedProfile profile){return new Pass(){public String id(){return "example:constant_hybrid";}public Set<ResourceKey<?>> reads(){return Collections.emptySet();}public Set<ResourceKey<?>> writes(){return Collections.<ResourceKey<?>>singleton(StandardResources.HYBRID_RESPONSE);}public void execute(PassContext context){context.put(StandardResources.HYBRID_RESPONSE,new HybridResponse(null,null,null,null,null,"RAY_ONLY",0.0,1.0));}};}});
+        }
+        if(!AcousticPassRegistry.registered().containsKey("example:source_reflections")){
+            AcousticPassRegistry.register("example:source_reflections",new PassFactory(){public Pass create(PipelineDefinition.PassDefinition definition,ResolvedProfile profile){return new Pass(){public String id(){return "example:source_reflections";}public Set<ResourceKey<?>> reads(){return Collections.<ResourceKey<?>>singleton(StandardResources.SOURCE_POSITION);}public Set<ResourceKey<?>> writes(){return Collections.<ResourceKey<?>>singleton(StandardResources.REFLECTION_FIELD);}public void execute(PassContext context){context.require(StandardResources.SOURCE_POSITION);context.put(StandardResources.REFLECTION_FIELD,new ReflectionField(0,Collections.<ReflectionSample>emptyList()));}};}});
+        }
+    }
+
+    private static void writeUtf8(Path path,String value) throws Exception {Path parent=path.getParent();if(parent!=null)Files.createDirectories(parent);Files.write(path,value.getBytes(java.nio.charset.StandardCharsets.UTF_8));}
+    private static void copyTree(Path source,Path target) throws Exception {java.util.List<Path> all=new java.util.ArrayList<Path>();Files.walk(source).forEach(all::add);for(Path p:all){Path dest=target.resolve(source.relativize(p).toString());if(Files.isDirectory(p))Files.createDirectories(dest);else Files.copy(p,dest,java.nio.file.StandardCopyOption.REPLACE_EXISTING);}}
+    private static void deleteTree(Path root) throws Exception {if(!Files.exists(root))return;java.util.List<Path> all=new java.util.ArrayList<Path>();Files.walk(root).forEach(all::add);Collections.reverse(all);for(Path p:all)Files.deleteIfExists(p);}
 
     private static void testExplicitNoShaderSelection() throws Exception {
         LegacyRuntimeConfig defaults=LegacyRuntimeConfig.defaults();if(defaults.packs().isEmpty()||!LegacyRuntimeConfig.DEFAULT_PACK.equals(defaults.pack()))throw new AssertionError("Reference shader must be selected on first launch");Path root=Files.createTempDirectory("acoustic-no-shader");Path cfg=root.resolve("runtime.properties");LegacyRuntimeConfig none=new LegacyRuntimeConfig(Collections.<String>emptyList(),"HIGH",18,10,10,24,true,false,Collections.<String,String>emptyMap());none.save(cfg);LegacyRuntimeConfig loaded=LegacyRuntimeConfig.loadOrCreate(cfg);if(!loaded.packs().isEmpty())throw new AssertionError("explicit empty shader stack was not preserved");LegacyShaderPackRuntime runtime=LegacyShaderPackRuntime.load(Paths.get("examples"),loaded);if(!runtime.disabled()||!runtime.livePipeline().passes().isEmpty())throw new AssertionError("empty stack did not become explicit vanilla-audio mode");Files.deleteIfExists(cfg);Files.deleteIfExists(root);System.out.println("[PASS] Reference shader defaults on, but user can explicitly select no acoustic shader");

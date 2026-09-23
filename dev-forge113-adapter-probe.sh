@@ -6,7 +6,7 @@ cd "$ROOT"
 
 TOOLCHAIN="${ACOUSTIC_FORGE113_TOOLCHAIN:-}"
 WINLAB_ROOT="${ACOUSTIC_WINLAB_ROOT:-}"
-MOD_JAR="${ACOUSTIC_FORGE113_MOD_JAR:-$ROOT/dist/acoustic-shaders-mc1122-0.3.0-rc19.jar}"
+MOD_JAR="${ACOUSTIC_FORGE113_MOD_JAR:-$ROOT/dist/acoustic-shaders-mc1122-0.3.0-rc20.jar}"
 OUT="$ROOT/out/forge113-adapter-probe"
 
 [[ -n "$TOOLCHAIN" ]] || { echo 'ERROR: ACOUSTIC_FORGE113_TOOLCHAIN is required' >&2; exit 2; }
@@ -101,7 +101,7 @@ UNSUPPORTED_COUNT="$(sed -n 's/^audit.unsupported=//p' "$OUT/audit.log" | tr -d 
 }
 printf '[PASS] server-only adapter correctly exposes client-only API boundary (unsupported=%s)\n' "$UNSUPPORTED_COUNT"
 
-ADAPTED_JAR="$OUT/acoustic-shaders-rc19-forge113-adapted.jar"
+ADAPTED_JAR="$OUT/acoustic-shaders-rc20-forge113-adapted.jar"
 printf '%s\n' '[Forge113] structural transform of the packaged legacy JAR'
 run_probe 'Forge legacy adapter transform' 120 "$OUT/transform.log" \
   "$RUN" wine "$WINDOWS_JAVA" -cp "$ADAPTER" dev.legacyadapter.cli.Main transform "$MOD_JAR" "$ADAPTED_JAR"

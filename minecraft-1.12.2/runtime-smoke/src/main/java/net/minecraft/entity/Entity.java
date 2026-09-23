@@ -1,1 +1,1 @@
-package net.minecraft.entity;public class Entity{public double field_70165_t,field_70163_u,field_70161_v;public Entity(double x,double y,double z){field_70165_t=x;field_70163_u=y;field_70161_v=z;}public float func_70047_e(){return 1.62f;}}
+package net.minecraft.entity;public class Entity{public double field_70165_t,field_70163_u,field_70161_v,field_70159_w,field_70181_x,field_70179_y;public boolean field_70128_L;public Entity(double x,double y,double z){field_70165_t=x;field_70163_u=y;field_70161_v=z;}public float func_70047_e(){return 1.62f;}}

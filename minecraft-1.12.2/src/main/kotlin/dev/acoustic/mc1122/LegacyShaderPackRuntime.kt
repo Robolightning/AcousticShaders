@@ -20,13 +20,17 @@ import dev.acoustic.core.pack.ShaderPackManifest
 import dev.acoustic.core.pack.ShaderPackStackComposer
 import dev.acoustic.core.pack.ShaderPackValidator
 import dev.acoustic.core.passes.LegacyEffectTuning
+import dev.acoustic.core.passes.StandardResources
 import dev.acoustic.core.pipeline.DefaultPipeline
+import dev.acoustic.core.pipeline.PipelineValidator
 import dev.acoustic.core.runtime.ResolvedProfile
+import dev.acoustic.core.runtime.AcousticPassRegistry
 import dev.acoustic.core.runtime.StandardPipelineCompiler
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Collections
+import java.util.LinkedHashSet
 import java.util.EnumSet
 import kotlin.math.max
 import kotlin.math.min
@@ -91,22 +95,24 @@ class LegacyShaderPackRuntime private constructor(
                 require(path.startsWith(normalizedRoot)) { "shaderpack escapes shaderpack directory" }
                 require(Files.exists(path)) { "shaderpack not found: ${path.fileName}" }
                 val loadedPack = if (Files.isDirectory(path)) loader.loadDirectory(path) else loader.loadZip(path)
-                ShaderPackValidator().requireValid(loadedPack, caps)
+                ShaderPackValidator().requireValidLayer(loadedPack, caps)
                 loaded.add(loadedPack)
                 names.add(loadedPack.manifest().name())
             }
             val compositionOrder = ArrayList(loaded)
             Collections.reverse(compositionOrder)
             val effective = ShaderPackStackComposer.compose(compositionOrder)
+            ShaderPackValidator().requireValid(effective, caps)
             require(effective.options().profiles().contains(config.profile())) { "preset ${config.profile()} is not defined by effective shader stack" }
-            val compiled = StandardPipelineCompiler().compile(effective, config.profile(), config.optionOverrides())
-            val live = toLivePipeline(compiled)
-            val invariant = listenerInvariantPipeline(live)
-            val source = sourcePipeline(compiled)
+            val compiled = StandardPipelineCompiler(AcousticPassRegistry.snapshot()).compile(effective, config.profile(), config.optionOverrides())
+            PipelineValidator.validate(compiled)
+            val live = outputClosure(compiled, StandardResources.HYBRID_RESPONSE, "legacy live backend requires a pass that writes response.hybrid")
+            val invariant = listenerInvariantPipeline(compiled)
+            val source = sourcePipeline(compiled, invariant)
             val tuning = deriveTuning(effective, config)
             val performance = derivePerformance(effective, config)
             val resolved = ResolvedProfile.from(effective.options(), config.profile(), config.optionOverrides())
-            val sourceStrength = if (containsPass(live, "standard.source_behavior")) max(0.0, min(1.0, safeDouble(resolved, "SOURCE_PROFILE_STRENGTH", 1.0))).toFloat() else 0f
+            val sourceStrength = if (containsPass(compiled, "standard.source_behavior")) max(0.0, min(1.0, safeDouble(resolved, "SOURCE_PROFILE_STRENGTH", 1.0))).toFloat() else 0f
             return LegacyShaderPackRuntime(
                 effective,
                 MaterialResolverCompiler.compile(effective, externalMaterialRules),
@@ -136,30 +142,43 @@ class LegacyShaderPackRuntime private constructor(
             )
         }
 
-        private fun toLivePipeline(compiled: DefaultPipeline): DefaultPipeline {
-            val passes = ArrayList<Pass>()
-            var hybrid = false
-            for (pass in compiled.passes()) {
-                passes.add(pass)
-                if (pass.id() == "standard.hybrid") {
-                    hybrid = true
-                    break
-                }
+        private fun outputClosure(compiled: DefaultPipeline, output: dev.acoustic.api.pipeline.ResourceKey<*>, missingMessage: String): DefaultPipeline {
+            val writers = compiled.passes().filter { it.writes().contains(output) }
+            require(writers.size == 1) { if (writers.isEmpty()) missingMessage else "multiple passes write $output" }
+            val dependencies = PipelineValidator.dependencies(compiled)
+            val keep = LinkedHashSet<Pass>()
+            fun include(pass: Pass) {
+                if (!keep.add(pass)) return
+                for (dependency in dependencies[pass] ?: emptySet()) include(dependency)
             }
-            require(hybrid) { "legacy live backend requires standard.hybrid in the effective pipeline" }
-            return DefaultPipeline(passes)
+            include(writers[0])
+            return DefaultPipeline(compiled.passes().filter { keep.contains(it) })
         }
 
-        private fun listenerInvariantPipeline(live: DefaultPipeline): DefaultPipeline {
-            val passes = ArrayList<Pass>()
-            for (pass in live.passes()) if (pass.id() == "standard.environment_rays") passes.add(pass)
-            return DefaultPipeline(passes)
+        /**
+         * Listener-only reflection precompute is an optimization, not part of the shader ABI.
+         * It is used only when the reflection writer is self-contained and source-independent;
+         * otherwise the custom stage remains in the per-source pipeline where all typed inputs exist.
+         */
+        private fun listenerInvariantPipeline(compiled: DefaultPipeline): DefaultPipeline {
+            val writers = compiled.passes().filter { it.writes().contains(StandardResources.REFLECTION_FIELD) }
+            if (writers.size != 1) return DefaultPipeline(emptyList<Pass>())
+            val writer = writers[0]
+            if (writer.writes().size != 1) return DefaultPipeline(emptyList<Pass>())
+            val forbidden = setOf(
+                StandardResources.SOURCE_POSITION, StandardResources.SOURCE_ID, StandardResources.SOURCE_PROFILE,
+                StandardResources.SOURCE_GAIN, StandardResources.SOURCE_VELOCITY, StandardResources.SOURCE_BEHAVIOR
+            )
+            if (writer.reads().any { forbidden.contains(it) } || writer.optionalReads().any { forbidden.contains(it) }) return DefaultPipeline(emptyList<Pass>())
+            val dependencies = PipelineValidator.dependencies(compiled)[writer] ?: emptySet()
+            if (dependencies.isNotEmpty()) return DefaultPipeline(emptyList<Pass>())
+            return DefaultPipeline(listOf(writer))
         }
 
-        private fun sourcePipeline(live: DefaultPipeline): DefaultPipeline {
-            val passes = ArrayList<Pass>()
-            for (pass in live.passes()) if (pass.id() != "standard.environment_rays") passes.add(pass)
-            return DefaultPipeline(passes)
+        private fun sourcePipeline(compiled: DefaultPipeline, invariant: DefaultPipeline): DefaultPipeline {
+            if (invariant.passes().isEmpty()) return compiled
+            val excluded = invariant.passes().toSet()
+            return DefaultPipeline(compiled.passes().filterNot { excluded.contains(it) })
         }
 
         private fun deriveTuning(pack: LoadedShaderPack, config: LegacyRuntimeConfig): LegacyEffectTuning {

@@ -1,5 +1,5 @@
 Manifest-Version: 1.0
 Implementation-Title: Acoustic Shaders
-Implementation-Version: 0.3.0-rc19
+Implementation-Version: 0.3.0-rc20
 MixinConfigs: mixins.acousticshaders.json
 

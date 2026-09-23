@@ -32,8 +32,38 @@ class ShaderPackManifest private constructor(
             )
         }
 
+        /**
+         * Builds the effective manifest for an ordered shader stack.
+         *
+         * Identity/name stay anchored to the lowest/base layer for diagnostics, while capability
+         * requirements are the union of every layer. A higher overlay therefore cannot silently
+         * hide a capability that it needs from validation of the effective stack.
+         */
+        @JvmStatic
+        fun compose(stack: List<ShaderPackManifest>?): ShaderPackManifest {
+            require(!stack.isNullOrEmpty()) { "shader manifest stack must contain at least one layer" }
+            val base = stack[0]
+            val required = EnumSet.noneOf(Capability::class.java)
+            val optional = EnumSet.noneOf(Capability::class.java)
+            for (manifest in stack) {
+                require(manifest.format == base.format) { "manifest format mismatch in shader stack" }
+                require(manifest.spec == base.spec) { "shader spec mismatch in shader stack: ${manifest.spec} != ${base.spec}" }
+                required.addAll(manifest.required)
+                optional.addAll(manifest.optional)
+            }
+            optional.removeAll(required)
+            return ShaderPackManifest(
+                base.format,
+                base.spec,
+                base.id,
+                base.name,
+                immutableCapabilities(required),
+                immutableCapabilities(optional)
+            )
+        }
+
         private fun capabilities(value: Any?): Set<Capability> {
-            if (value == null) return Collections.unmodifiableSet(EnumSet.noneOf(Capability::class.java))
+            if (value == null) return immutableCapabilities(EnumSet.noneOf(Capability::class.java))
             if (value !is List<*>) throw IllegalArgumentException("capability list must be array")
             val set = EnumSet.noneOf(Capability::class.java)
             for (raw in value) {
@@ -42,7 +72,12 @@ class ShaderPackManifest private constructor(
                 try { set.add(Capability.valueOf(normalized)) }
                 catch (_: IllegalArgumentException) { throw IllegalArgumentException("unknown capability: $raw") }
             }
-            return Collections.unmodifiableSet(set)
+            return immutableCapabilities(set)
+        }
+
+        private fun immutableCapabilities(source: Set<Capability>): Set<Capability> {
+            val copy = if (source.isEmpty()) EnumSet.noneOf(Capability::class.java) else EnumSet.copyOf(source)
+            return Collections.unmodifiableSet(copy)
         }
 
         private fun intValue(map: Map<*, *>, key: String): Int {

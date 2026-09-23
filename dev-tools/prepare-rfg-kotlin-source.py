@@ -4,7 +4,7 @@
 The normal deterministic release path compiles against dual-name contract stubs and deliberately
 ships both MCP and SRG GUI entry points. RetroFuturaGradle compiles against MCP names and later
 reobfuscates those methods to SRG. Feeding the dual-name source to RFG would therefore create
-method collisions after reobf. This tool removes only the explicit SRG GUI aliases and rewrites
+method collisions after reobf. This tool removes only the explicit SRG GUI aliases and projectile tick alias and rewrites
 explicit SRG super-calls back to their MCP equivalents in the temporary RFG source view.
 """
 from __future__ import annotations
@@ -103,6 +103,20 @@ def main() -> None:
             super_count += count
         path.write_text(source)
 
+
+    projectile_matches = list(out.rglob("LegacyProjectileEmitterManager.kt"))
+    if len(projectile_matches) != 1:
+        raise SystemExit(f"expected exactly one LegacyProjectileEmitterManager.kt, found {len(projectile_matches)}")
+    projectile_path = projectile_matches[0]
+    projectile_source = projectile_path.read_text()
+    projectile_pattern = re.compile(r"(?m)^\s*fun\s+func_73660_a\(\)\s*=\s*update\(\)\s*$\n?")
+    projectile_source, projectile_alias_count = projectile_pattern.subn("", projectile_source, count=1)
+    if projectile_alias_count != 1:
+        raise SystemExit(f"expected exactly one projectile SRG tick alias, removed {projectile_alias_count}")
+    if not re.search(r"\boverride\s+fun\s+update\(\)", projectile_source):
+        raise SystemExit("required MCP projectile update() override missing after RFG normalization")
+    projectile_path.write_text(projectile_source)
+
     # RFG must now see only MCP overrides in those GUI classes. Reflection strings elsewhere are
     # intentionally untouched and continue to carry both MCP/SRG aliases for runtime forks.
     for filename, rules in GUI_RULES.items():
@@ -124,7 +138,7 @@ def main() -> None:
         )
     print(
         f"[PASS] prepared RFG MCP source view: {copied} Kotlin files, "
-        f"removed {alias_count} explicit SRG GUI aliases, rewrote {super_count} SRG super-calls"
+        f"removed {alias_count} explicit SRG GUI aliases + {projectile_alias_count} projectile tick alias, rewrote {super_count} SRG super-calls"
     )
 
 

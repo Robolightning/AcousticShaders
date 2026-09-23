@@ -2,6 +2,7 @@ package dev.acoustic.core.pack
 
 import java.util.Collections
 import java.util.LinkedHashMap
+import java.util.LinkedHashSet
 
 /** Deterministically composes an ordered acoustic-shader stack. */
 object ShaderPackStackComposer {
@@ -14,7 +15,9 @@ object ShaderPackStackComposer {
         val materials = LinkedHashMap<String, MaterialPack>()
         val media = LinkedHashMap<String, MediumPack>()
         val format = base.pipeline().format()
+        val packIds = LinkedHashSet<String>()
         for (pack in stack) {
+            require(packIds.add(pack.manifest().id())) { "duplicate shader pack id in stack: ${pack.manifest().id()}" }
             require(pack.pipeline().format() == format) { "pipeline format mismatch in shader stack" }
             for (pass in pack.pipeline().passes()) passes[pass.id()] = pass
             options.putAll(pack.options().values())
@@ -22,7 +25,8 @@ object ShaderPackStackComposer {
             media.putAll(pack.mediumPacks())
         }
         val pipeline = PipelineDefinition.of(format, ArrayList(passes.values))
-        return LoadedShaderPack(base.manifest(), pipeline, PackOptions.of(options), materials, media)
+        val manifest = ShaderPackManifest.compose(stack.map { it.manifest() })
+        return LoadedShaderPack(manifest, pipeline, PackOptions.of(options), materials, media)
     }
 
     @JvmStatic

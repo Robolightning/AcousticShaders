@@ -97,14 +97,15 @@ internal class ForgeBlockAcousticIntrospector private constructor() {
         val stateId = if (meta >= 0) "$registry#meta=$meta" else registry
         val material = try { ForgeReflection.invoke(state, arrayOf("getMaterial", "func_185904_a")) } catch (_: Throwable) { null }
         val materialName = materialName(material, block, registry)
-        val liquid = bool(material, arrayOf("isLiquid", "func_76224_d"), false)
+        val forgeFluid = forgeFluid(block)
+        val liquid = bool(material, arrayOf("isLiquid", "func_76224_d"), false) || forgeFluid != null
         val full = bool(state, arrayOf("isFullCube", "func_185917_h"), false)
         val opaque = bool(state, arrayOf("isOpaqueCube", "func_185914_p"), full)
         val blocks = bool(material, arrayOf("blocksMovement", "func_76230_c"), full)
         val solid = !liquid && (full || blocks)
         return Cached(
             registry, stateId, materialName, soundTypeName(state, block, world, pos), oreNames(block, meta),
-            solid, full, opaque, liquid, inferMedium(registry, materialName, liquid), meta,
+            solid, full, opaque, liquid, inferMedium(registry, materialName, liquid, forgeFluid), meta,
             numberField(block, 0f, "blockHardness", "field_149782_v"),
             numberField(block, 0f, "blockResistance", "field_149781_w")
         )
@@ -239,10 +240,41 @@ internal class ForgeBlockAcousticIntrospector private constructor() {
     companion object {
         @JvmField val INSTANCE = ForgeBlockAcousticIntrospector()
 
-        private fun inferMedium(registryId: String, materialName: String, liquid: Boolean): AcousticMedium {
+        private fun inferMedium(registryId: String, materialName: String, liquid: Boolean, forgeFluid: Any?): AcousticMedium {
             if (!liquid) return AcousticMedia.AIR
-            val text = "$registryId $materialName".lowercase(Locale.ROOT)
-            return if (text.contains("lava") || text.contains("magma") || text.contains("molten")) AcousticMedia.LAVA else AcousticMedia.WATER
+            if (forgeFluid == null) {
+                val text = "$registryId $materialName".lowercase(Locale.ROOT)
+                return if (text.contains("lava") || text.contains("magma") || text.contains("molten")) AcousticMedia.LAVA else AcousticMedia.WATER
+            }
+            val name = try { ForgeReflection.invoke(forgeFluid, arrayOf("getName"))?.toString()?.trim()?.lowercase(Locale.ROOT) } catch (_: Throwable) { null }
+            if (name == "water") return AcousticMedia.WATER
+            if (name == "lava") return AcousticMedia.LAVA
+            val gaseous = try { ForgeReflection.invoke(forgeFluid, arrayOf("isGaseous")) as? Boolean ?: false } catch (_: Throwable) { false }
+            val temperature = try { (ForgeReflection.invoke(forgeFluid, arrayOf("getTemperature")) as? Number)?.toInt() ?: 300 } catch (_: Throwable) { 300 }
+            val density = try { (ForgeReflection.invoke(forgeFluid, arrayOf("getDensity")) as? Number)?.toDouble() } catch (_: Throwable) { null }
+            val text = "${name ?: "unknown"} $registryId $materialName".lowercase(Locale.ROOT)
+            val fallback = when {
+                gaseous -> AcousticMedia.AIR
+                temperature >= 700 || text.contains("lava") || text.contains("magma") || text.contains("molten") -> AcousticMedia.LAVA
+                else -> AcousticMedia.WATER
+            }
+            val rho = if (!gaseous && density != null && density.isFinite() && density > 0.0 && density < 20000.0) density else fallback.densityKgPerCubicMeter()
+            val stableName = (name ?: registryId.replace(':', '_')).ifBlank { "unknown" }
+            return AcousticMedium("forge-fluid:$stableName", rho, fallback.speedOfSoundMetersPerSecond(), fallback.absorptionSpectrum())
+        }
+
+        private fun forgeFluid(block: Any): Any? {
+            try {
+                val iFluidBlock = ForgeReflection.type("net.minecraftforge.fluids.IFluidBlock")
+                if (iFluidBlock.isInstance(block)) {
+                    val direct = ForgeReflection.invoke(block, arrayOf("getFluid"))
+                    if (direct != null) return direct
+                }
+            } catch (_: Throwable) { }
+            return try {
+                val registry = ForgeReflection.type("net.minecraftforge.fluids.FluidRegistry")
+                ForgeReflection.invoke(registry, arrayOf("lookupFluidForBlock"), block)
+            } catch (_: Throwable) { null }
         }
 
         /**
@@ -265,8 +297,12 @@ internal class ForgeBlockAcousticIntrospector private constructor() {
                         val raw = (method.invoke(block, world, pos) as? Number)?.toDouble()
                         if (raw != null && raw.isFinite()) {
                             val fill = kotlin.math.abs(raw).coerceIn(0.0, 1.0)
-                            if (fill > 1.0e-6) return if (fill >= 1.0 - 1.0e-6) AcousticShape.FULL else
-                                AcousticShape.of(AcousticBox(0.0, 0.0, 0.0, 1.0, fill, 1.0))
+                            if (fill > 1.0e-6) {
+                                if (fill >= 1.0 - 1.0e-6) return AcousticShape.FULL
+                                // Forge uses negative fill for lighter-than-air fluids: occupied volume descends from the ceiling.
+                                return if (raw < 0.0) AcousticShape.of(AcousticBox(0.0, 1.0 - fill, 0.0, 1.0, 1.0, 1.0))
+                                else AcousticShape.of(AcousticBox(0.0, 0.0, 0.0, 1.0, fill, 1.0))
+                            }
                         }
                     }
                 } catch (_: Throwable) {

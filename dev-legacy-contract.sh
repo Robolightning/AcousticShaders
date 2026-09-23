@@ -87,6 +87,8 @@ find "$ROOT/minecraft-1.12.2/runtime-smoke/src/main/java" -name '*.java' | sort 
 javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$OUT/forge-classes:$KOTLIN_CP" -d "$OUT/runtime-smoke" @"$OUT/runtime-smoke-sources.txt"
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.ForgeRegistryFallbackSmokeTest
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.LegacyForgeSmokeTest
+"$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.ProjectileEmitterSmokeTest
+"$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.DirectPathDiagnosticSmokeTest
 find "$ROOT/minecraft-1.12.2/srg-gui-smoke/src/main/java" -name '*.java' | sort > "$OUT/srg-gui-smoke-sources.txt"
 javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$OUT/forge-classes:$KOTLIN_CP" -d "$OUT/srg-gui-smoke" @"$OUT/srg-gui-smoke-sources.txt"
 rm -rf "$OUT/srg-gui-smoke-work"

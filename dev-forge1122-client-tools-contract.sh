@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"; cd "$ROOT"
-for f in dev-forge1122-client-preflight.sh dev-forge1122-client-launch.sh dev-vanilla1122-winlab-client.sh dev-winlab-real-minecraft-sound-event.sh dev-winlab-real-minecraft-world-sound-event.sh dev-winlab-real-minecraft-gameplay-sound-event.sh dev-winlab-real-cuda-fdtd-hardware.sh; do
+for f in dev-forge1122-client-preflight.sh dev-forge1122-client-launch.sh dev-vanilla1122-winlab-client.sh dev-winlab-real-minecraft-sound-event.sh dev-winlab-real-minecraft-world-sound-event.sh dev-winlab-real-minecraft-gameplay-sound-event.sh dev-winlab-real-minecraft-projectile-gameplay.sh dev-winlab-real-minecraft-liquid-tnt-gameplay.sh dev-winlab-real-cuda-fdtd-hardware.sh; do
   bash -n "$f"
 done
 python3 - <<'PY'
 import pathlib,re
-for name in ('dev-forge1122-client-preflight.sh','dev-forge1122-client-launch.sh','dev-vanilla1122-winlab-client.sh','dev-winlab-real-minecraft-sound-event.sh','dev-winlab-real-minecraft-world-sound-event.sh','dev-winlab-real-minecraft-gameplay-sound-event.sh'):
+for name in ('dev-forge1122-client-preflight.sh','dev-forge1122-client-launch.sh','dev-vanilla1122-winlab-client.sh','dev-winlab-real-minecraft-sound-event.sh','dev-winlab-real-minecraft-world-sound-event.sh','dev-winlab-real-minecraft-gameplay-sound-event.sh','dev-winlab-real-minecraft-projectile-gameplay.sh','dev-winlab-real-minecraft-liquid-tnt-gameplay.sh'):
     s=pathlib.Path(name).read_text()
     blocks=re.findall(r"<<'PY'\n(.*?)\nPY(?:\n|$)",s,re.S)
     if not blocks:
@@ -16,11 +16,11 @@ for name in ('dev-forge1122-client-preflight.sh','dev-forge1122-client-launch.sh
 launch=pathlib.Path('dev-forge1122-client-launch.sh').read_text()
 for token in (
     'ACOUSTIC_CLIENT_BOOT_LEVEL', 'ACOUSTIC_CLIENT_NULL_AUDIO', 'ACOUSTIC_CLIENT_REUSE_GAME', 'ACOUSTIC_CLIENT_MIXIN_EXPORT',
-    'ACOUSTIC_CLIENT_SOUND_EVENT_PROBE_JAR', 'ACOUSTIC_CLIENT_REQUIRE_SOUND_EVENT_PROBE', 'ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT',
+    'ACOUSTIC_CLIENT_SOUND_EVENT_PROBE_JAR', 'ACOUSTIC_CLIENT_REQUIRE_SOUND_EVENT_PROBE', 'ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT', 'ACOUSTIC_CLIENT_PROBE_SUCCESS_MARKER',
     'ACOUSTIC_CLIENT_PROFILE', 'ACOUSTIC_CLIENT_COMPUTE_BACKEND', 'ACOUSTIC_CLIENT_RAY_COMPUTE_BACKEND', 'ACOUSTIC_CLIENT_REQUIRE_CUDA_FDTD',
     'option.COMPUTE_BACKEND=%s', 'option.RAY_COMPUTE_BACKEND=%s', 'acousticshaders.probe.requireCudaFdtd=true',
     'Xvfb', 'MinecraftForge v14.23.5.2864 Initialized',
-    'expected_mod_count', 'ACOUSTIC-REAL-MINECRAFT-SOUND-EVENT-OK',
+    'expected_mod_count', 'probe_success_marker', 'ACOUSTIC-REAL-MINECRAFT-SOUND-EVENT-OK',
     'default acoustic database (?:rebuilt|cache hit)', '[AcousticShaders] initialized for Minecraft 1.12.2',
     'OpenAL initialized.', 'ALSOFT_DRIVERS', 'mixin.debug.export=true', 'SourceLWJGLOpenAL.transformed.javap.txt', 'LegacySoundHook.${hook}', 'start_new_session=True', 'time.monotonic()', 'SUPERVISOR_WALL_TIMEOUT', 'timeout --signal=TERM --kill-after=2s', 'CLIENT_PID_FILE', 'cwd=str(game_dir)', 'kill -TERM -- \"-$CLIENT_SESSION_PID\"'):
     if token not in launch:
@@ -75,6 +75,36 @@ for token in ('--release 8', '-Werror', 'ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT=9',
               'vanillaTntEntity=1 vanillaExplosion=1 play=1 cleanup=1'):
     if token not in gameplay_post:
         raise SystemExit(f'ERROR: post-package vanilla gameplay sound-event gate missing {token!r}')
+
+projectile_probe=pathlib.Path('dev-tools/RealMinecraftProjectileGameplayProbeMod.java').read_text()
+for token in (
+    'required-after:acousticshaders', 'clientSideOnly = true', 'EntityTippedArrow', 'projectile.flight',
+    'acousticshaders.probe.directPath', 'LegacyDirectPathDiagnostic', 'activeSources',
+    'ACOUSTIC-REAL-MINECRAFT-PROJECTILE-GAMEPLAY-OK',
+    'vanillaEntityTippedArrow=1 flightSource=1 movement=1 directPath=1 bands=8 cleanup=1 diagnosticCleanup=1'):
+    if token not in projectile_probe:
+        raise SystemExit(f'ERROR: projectile gameplay probe contract missing {token!r}')
+projectile_post=pathlib.Path('dev-winlab-real-minecraft-projectile-gameplay.sh').read_text()
+for token in ('--release 8', '-Werror', 'ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT=9',
+              'ACOUSTIC_CLIENT_REQUIRE_SOUND_EVENT_PROBE=1', 'ACOUSTIC_CLIENT_PROBE_SUCCESS_MARKER="$SUCCESS"',
+              'ACOUSTIC_CLIENT_MIXIN_EXPORT=1', 'ACOUSTIC-REAL-MINECRAFT-PROJECTILE-GAMEPLAY-OK'):
+    if token not in projectile_post:
+        raise SystemExit(f'ERROR: post-package projectile gameplay gate missing {token!r}')
+
+liquid_probe=pathlib.Path('dev-tools/RealMinecraftLiquidTntGameplayProbeMod.java').read_text()
+for token in (
+    'required-after:acousticshaders', 'clientSideOnly = true', 'EntityTNTPrimed',
+    'acousticshaders.probe.directPath', 'LegacyDirectPathDiagnostic', 'field_150355_j', 'field_150353_l',
+    'water-source-air-listener', 'air-source-water-listener', 'water-water', 'air-water-air', 'air-lava-air',
+    'ACOUSTIC-REAL-MINECRAFT-LIQUID-TNT-GAMEPLAY-OK', 'scenarios=5'):
+    if token not in liquid_probe:
+        raise SystemExit(f'ERROR: liquid/TNT gameplay probe contract missing {token!r}')
+liquid_post=pathlib.Path('dev-winlab-real-minecraft-liquid-tnt-gameplay.sh').read_text()
+for token in ('--release 8', '-Werror', 'ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT=9',
+              'ACOUSTIC_CLIENT_REQUIRE_SOUND_EVENT_PROBE=1', 'ACOUSTIC_CLIENT_PROBE_SUCCESS_MARKER="$SUCCESS"',
+              'ACOUSTIC_CLIENT_MIXIN_EXPORT=1', 'ACOUSTIC-REAL-MINECRAFT-LIQUID-TNT-GAMEPLAY-OK'):
+    if token not in liquid_post:
+        raise SystemExit(f'ERROR: post-package liquid/TNT gameplay gate missing {token!r}')
 
 cuda_fdtd=pathlib.Path('dev-winlab-real-cuda-fdtd-hardware.sh').read_text()
 for token in ('ACOUSTIC_CLIENT_PROFILE=MAXIMUM', 'ACOUSTIC_CLIENT_COMPUTE_BACKEND=CUDA',

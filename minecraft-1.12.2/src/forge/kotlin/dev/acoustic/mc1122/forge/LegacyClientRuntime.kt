@@ -35,6 +35,7 @@ import dev.acoustic.mc1122.LegacyPublishedState
 import dev.acoustic.mc1122.LegacyRuntimeConfig
 import dev.acoustic.mc1122.LegacySceneCapture
 import dev.acoustic.mc1122.LegacyShaderPackRuntime
+import dev.acoustic.mc1122.LegacyShaderPackFingerprint
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -73,6 +74,7 @@ internal class LegacyClientRuntime {
     private val evaluator = LegacyAcousticEvaluator()
     private val fullProjector = HybridLegacyProjector()
     private val sourceBudget = SourceBudgetAllocator()
+    private val projectileEmitters = LegacyProjectileEmitterManager()
     @Volatile private var publishedValue: LegacyPublishedState = LegacyPublishedState.EMPTY
 
     private var lastWorld: Any? = null
@@ -81,6 +83,8 @@ internal class LegacyClientRuntime {
     private var lastFullRefreshTick = 0
     private var epoch = 1L
     private var configStamp = 0L
+    @Volatile private var shaderPackObservedFingerprint = ""
+    @Volatile private var shaderPackActiveFingerprint = ""
 
     private lateinit var analysisExecutor: ExecutorService
     private lateinit var physicsWorkers: ExecutorService
@@ -141,8 +145,9 @@ internal class LegacyClientRuntime {
             mediumRules = snapshot.mediumRules
             sourceProfiles = snapshot.sourceProfiles
             val next = LegacyRuntimeConfig.loadOrCreate(configFile)
+            val fingerprint = LegacyShaderPackFingerprint.compute(shaderpackDirValue, next.packs())
             val nextPack = LegacyShaderPackRuntime.load(shaderpackDirValue, next, materialRules, mediumRules)
-            activate(next, nextPack)
+            activate(next, nextPack, fingerprint)
         } catch (t: Throwable) {
             AcousticLog.error("generated material database refresh failed", t)
         }
@@ -153,6 +158,7 @@ internal class LegacyClientRuntime {
         try {
             if (ticks % 40 == 0) {
                 reloadIfChanged()
+                reloadShaderPacksIfChanged()
                 reloadAudioIfChanged()
                 reloadMaterialResourcesIfChanged()
             }
@@ -185,6 +191,8 @@ internal class LegacyClientRuntime {
                     lastWorld = null
                     lastListener = null
                     capture.reset()
+                    projectileEmitters.clear()
+                    LegacyDirectPathDiagnostic.clear()
                     pendingRoom = null
                     publishedValue = LegacyPublishedState.EMPTY
                     epoch++
@@ -193,6 +201,7 @@ internal class LegacyClientRuntime {
             }
 
             val listener = listener(entity)
+            projectileEmitters.tick(world, entity)
             listenerForwardValue = listenerForward(entity)
             val changedWorld = world !== lastWorld
             val previousListener = lastListener
@@ -201,6 +210,8 @@ internal class LegacyClientRuntime {
                 lastWorld = world
                 lastListener = null
                 capture.reset()
+                projectileEmitters.clear()
+                LegacyDirectPathDiagnostic.clear()
                 pendingRoom = null
                 publishedValue = LegacyPublishedState.EMPTY
                 epoch++
@@ -371,6 +382,7 @@ internal class LegacyClientRuntime {
             generation = ++sourceGeneration
             activeSources[sourceId] = SourceState(generation, soundId, profile, position, gain, importance, streaming, looping)
         }
+        LegacyDirectPathDiagnostic.arm(sourceId, generation)
         val state = publishedValue
         val acousticsActive = configValue.effectsEnabled() && !packValue.disabled() && !effectiveSourceProfile(profile, packValue).bypassAcoustics()
         if (acousticsActive && fullSourceReady(state, packValue)) {
@@ -431,6 +443,7 @@ internal class LegacyClientRuntime {
             activeSources.remove(sourceId)
             pendingSources.remove(sourceId)
         }
+        LegacyDirectPathDiagnostic.disarm(sourceId)
         wetRenderer.invalidate(sourceId)
     }
 
@@ -588,6 +601,7 @@ internal class LegacyClientRuntime {
                         behavior,
                         request.velocity,
                         effect,
+                        response.direct(),
                         rir,
                         early,
                         foa,
@@ -652,6 +666,7 @@ internal class LegacyClientRuntime {
                 continue
             }
             if (boundedLag) fullSourceLagAccepted++
+            LegacyDirectPathDiagnostic.publish(result.sourceId, result.generation, result.direct)
             active.lastEffect = result.effect
             active.lastEffectRevision = currentRevision
             val capture = active.pcmCapture
@@ -704,6 +719,7 @@ internal class LegacyClientRuntime {
             "platformFrame={validated=$validatedPlatformFrames epoch=$lastPlatformFrameEpoch sequence=$lastPlatformFrameSequence sources=$lastPlatformFrameSources} " +
             "platformMotion={movingSources=$lastPlatformFrameMovingSources} " +
             "sourceFrameRefresh={requested=$sourceFrameRefreshRevision scheduled=$scheduledSourceFrameRefreshRevision} " +
+            "shaderStack={active=${shaderPackActiveFingerprint.take(12)} observed=${shaderPackObservedFingerprint.take(12)}} " +
             "softwareWet={enabled=${audioConfig.softwareWetEnabled} submitted=${wetRenderer.submitted} rendered=${wetRenderer.rendered} dropped=${wetRenderer.dropped} failures=${wetRenderer.failures}} " +
             "rayCompute={${rayBackendDiagnostics()}} waveCompute={${waveBackendDiagnostics()}}"
 
@@ -731,9 +747,10 @@ internal class LegacyClientRuntime {
     @Throws(IOException::class)
     fun applyUiConfiguration(stack: List<String>, profile: String, overrides: Map<String, String>) {
         val next = configValue.withUi(stack, profile, overrides)
+        val fingerprint = LegacyShaderPackFingerprint.compute(shaderpackDirValue, next.packs())
         val nextPack = LegacyShaderPackRuntime.load(shaderpackDirValue, next, materialRules, mediumRules)
         next.save(configFile)
-        activate(next, nextPack)
+        activate(next, nextPack, fingerprint)
     }
 
     private fun reloadIfChanged() {
@@ -758,8 +775,28 @@ internal class LegacyClientRuntime {
     @Throws(IOException::class)
     private fun reload() {
         val next = LegacyRuntimeConfig.loadOrCreate(configFile)
+        val fingerprint = LegacyShaderPackFingerprint.compute(shaderpackDirValue, next.packs())
         val nextPack = LegacyShaderPackRuntime.load(shaderpackDirValue, next, materialRules, mediumRules)
-        activate(next, nextPack)
+        activate(next, nextPack, fingerprint)
+    }
+
+    /**
+     * Content-based, transactional shader-pack hot reload. Invalid edits never replace the last
+     * working runtime; a later content change retriggers validation automatically.
+     */
+    private fun reloadShaderPacksIfChanged() {
+        try {
+            val fingerprint = LegacyShaderPackFingerprint.compute(shaderpackDirValue, configValue.packs())
+            if (fingerprint == shaderPackObservedFingerprint) return
+            shaderPackObservedFingerprint = fingerprint
+            val nextPack = LegacyShaderPackRuntime.load(shaderpackDirValue, configValue, materialRules, mediumRules)
+            activate(configValue, nextPack, fingerprint)
+            AcousticLog.info("acoustic shader stack hot-reloaded: ${nextPack.stackNames()}")
+        } catch (t: Throwable) {
+            // Keep the already-active runtime. observedFingerprint remains on the rejected bytes so
+            // we do not spam retries every poll; editing the pack again produces a new fingerprint.
+            debugError("shader pack hot reload", t)
+        }
     }
 
     private fun reloadMaterialResourcesIfChanged() {
@@ -768,8 +805,9 @@ internal class LegacyClientRuntime {
             materialRules = snapshot.rules
             mediumRules = snapshot.mediumRules
             sourceProfiles = snapshot.sourceProfiles
+            val fingerprint = LegacyShaderPackFingerprint.compute(shaderpackDirValue, configValue.packs())
             val nextPack = LegacyShaderPackRuntime.load(shaderpackDirValue, configValue, materialRules, mediumRules)
-            activate(configValue, nextPack)
+            activate(configValue, nextPack, fingerprint)
         } catch (t: Throwable) {
             debugError("material resource reload", t)
         }
@@ -777,7 +815,7 @@ internal class LegacyClientRuntime {
 
     @Synchronized
     @Throws(IOException::class)
-    private fun activate(next: LegacyRuntimeConfig, nextPack: LegacyShaderPackRuntime) {
+    private fun activate(next: LegacyRuntimeConfig, nextPack: LegacyShaderPackRuntime, shaderFingerprint: String = LegacyShaderPackFingerprint.compute(shaderpackDirValue, next.packs())) {
         val oldAnalysis = if (::analysisExecutor.isInitialized) analysisExecutor else null
         val oldPhysics = if (::physicsWorkers.isInitialized) physicsWorkers else null
         val oldPipeline = if (::pipelineExecutor.isInitialized) pipelineExecutor else null
@@ -802,6 +840,8 @@ internal class LegacyClientRuntime {
         packValue = nextPack
         capture = LegacySceneCapture(nextPack.resolver(), nextPack.mediumResolver())
         configStamp = if (Files.isRegularFile(configFile)) Files.getLastModifiedTime(configFile).toMillis() else 0L
+        shaderPackObservedFingerprint = shaderFingerprint
+        shaderPackActiveFingerprint = shaderFingerprint
         epoch++
         publishedValue = LegacyPublishedState.EMPTY
         lastListener = null
@@ -880,6 +920,7 @@ internal class LegacyClientRuntime {
         val behavior: AcousticSourceProfile,
         val velocity: Vec3,
         val effect: LegacyEffectParameters,
+        val direct: dev.acoustic.core.passes.DirectPathResult?,
         val rir: ImpulseResponse?,
         val early: EarlyReflectionField?,
         val foa: FoaImpulseResponse?,

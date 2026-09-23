@@ -1,6 +1,6 @@
 package net.minecraft.block;
 import java.util.*;import net.minecraft.util.*;import net.minecraft.block.state.IBlockState;import net.minecraft.world.World;import net.minecraft.util.math.*;
-public final class Block{
+@SuppressWarnings("this-escape") public class Block{
  public static final java.util.List<Block> REGISTRY=new java.util.ArrayList<Block>();public static int collisionCalls;
  private final ResourceLocation id;public final SoundType blockSoundType;public float blockHardness=1.5f,blockResistance=10f;private IBlockState defaultState;private final java.util.Map<Integer,IBlockState> states=new java.util.HashMap<Integer,IBlockState>();private AxisAlignedBB collision=new AxisAlignedBB(0,0,0,1,1,1);private float filledPercentage=Float.NaN;
  public Block(String id,String soundId){this.id=new ResourceLocation(id);this.blockSoundType=new SoundType(soundId);REGISTRY.add(this);}
