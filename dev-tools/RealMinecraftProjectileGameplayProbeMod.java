@@ -119,7 +119,7 @@ public final class RealMinecraftProjectileGameplayProbeMod {
                     for (Map.Entry<Integer,Object> e : sources.entrySet()) {
                         Object state = e.getValue();
                         String soundId = String.valueOf(field(state, "soundId"));
-                        if (!soundId.contains("projectile.flight")) continue;
+                        if (!isProjectileFlightSound(soundId)) continue;
                         Object pos = field(state, "position");
                         sourceId = e.getKey().intValue();
                         firstX = numberField(pos, "x");
@@ -225,6 +225,11 @@ public final class RealMinecraftProjectileGameplayProbeMod {
             Field runtimeField = hook.getDeclaredField("runtime");
             runtimeField.setAccessible(true);
             return runtimeField.get(null);
+        }
+
+        private static boolean isProjectileFlightSound(String soundId) {
+            String normalized = soundId == null ? "" : soundId.replace('\\', '/').toLowerCase(java.util.Locale.ROOT);
+            return normalized.endsWith("projectile.flight") || normalized.endsWith("projectile.flight.ogg") || normalized.endsWith("projectile/flight.ogg");
         }
 
         private static Object diagnosticSnapshot(int id) throws Exception {

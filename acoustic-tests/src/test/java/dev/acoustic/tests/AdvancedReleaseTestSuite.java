@@ -532,10 +532,10 @@ public final class AdvancedReleaseTestSuite {
 
     private static void testSourceProfileParsingAndResolution(){
         SourceProfilePack pack=SourceProfilePack.parse(DefaultSourceProfiles.json());SourceProfileResolver resolver=new SourceProfileResolver(pack.rules(),AcousticSourceProfile.GENERIC);
-        AcousticSourceProfile explosion=resolver.resolve("minecraft/sounds/entity/generic/explosion1.ogg"),launch=resolver.resolve("minecraft/sounds/entity/arrow/shoot1.ogg"),legacyLaunch=resolver.resolve("minecraft/sounds/random/bow1.ogg"),flight=resolver.resolve("acousticshaders/sounds/projectile.flight.ogg"),arrowFlight=resolver.resolve("minecraft/sounds/entity/arrow/fly.ogg"),impact=resolver.resolve("minecraft/sounds/entity/arrow/hit1.ogg"),legacyImpact=resolver.resolve("minecraft/sounds/random/bowhit1.ogg"),music=resolver.resolve("minecraft/music/game.ogg");
+        AcousticSourceProfile explosion=resolver.resolve("minecraft/sounds/entity/generic/explosion1.ogg"),launch=resolver.resolve("minecraft/sounds/entity/arrow/shoot1.ogg"),legacyLaunch=resolver.resolve("minecraft/sounds/random/bow1.ogg"),flightEvent=resolver.resolve("acousticshaders:projectile.flight"),flight=resolver.resolve("acousticshaders/sounds/projectile.flight.ogg"),runtimeFlight=resolver.resolve("acousticshaders:sounds/projectile/flight.ogg"),nearMiss=resolver.resolve("mod:sounds/projectile/flightless.ogg"),arrowFlight=resolver.resolve("minecraft/sounds/entity/arrow/fly.ogg"),impact=resolver.resolve("minecraft/sounds/entity/arrow/hit1.ogg"),legacyImpact=resolver.resolve("minecraft/sounds/random/bowhit1.ogg"),music=resolver.resolve("minecraft/music/game.ogg");
         if(!"explosion".equals(explosion.category())||explosion.lateScale()<=1f||explosion.emission(0)<=explosion.emission(6))throw new AssertionError("explosion source profile invalid");
         if(!"projectile_launch".equals(launch.category())||launch.dopplerScale()!=0f||!"projectile_launch".equals(legacyLaunch.category())||legacyLaunch.dopplerScale()!=0f)throw new AssertionError("projectile launch must be transient without Doppler");
-        if(!"projectile_flight".equals(flight.category())||flight.dopplerScale()<=0f||flight.movementSensitivity()<=1f||!"projectile_flight".equals(arrowFlight.category()))throw new AssertionError("projectile flight profile invalid");
+        if(!"projectile_flight".equals(flightEvent.category())||flightEvent.dopplerScale()<=0f||!"projectile_flight".equals(flight.category())||flight.dopplerScale()<=0f||flight.movementSensitivity()<=1f||!"projectile_flight".equals(runtimeFlight.category())||runtimeFlight.dopplerScale()<=0f||runtimeFlight.movementSensitivity()<=1f||"projectile_flight".equals(nearMiss.category())||!"projectile_flight".equals(arrowFlight.category()))throw new AssertionError("projectile flight profile invalid");
         if(!"impact".equals(impact.category())||!"impact".equals(legacyImpact.category()))throw new AssertionError("projectile impact profile invalid");
         if(!music.bypassAcoustics())throw new AssertionError("music must bypass world acoustics by default");
         System.out.println("[PASS] source-category launch/flight/impact + explosion/nonspatial inference");
@@ -560,7 +560,7 @@ public final class AdvancedReleaseTestSuite {
         LoadedShaderPack pack=new ShaderPackLoader().loadDirectory(Paths.get("examples/reference-pack"));
         SourceProfileResolver resolver=new SourceProfileResolver(SourceProfilePack.parse(DefaultSourceProfiles.json()).rules(),AcousticSourceProfile.GENERIC);
         AcousticSourceProfile explosion=resolver.resolve("minecraft/sounds/entity/generic/explosion1.ogg");
-        AcousticSourceProfile projectile=resolver.resolve("acousticshaders/sounds/projectile.flight.ogg");
+        AcousticSourceProfile projectile=resolver.resolve("acousticshaders:sounds/projectile/flight.ogg");
         if(!"explosion".equals(explosion.category())||!"projectile_flight".equals(projectile.category()))throw new AssertionError("cross-product source profiles unavailable");
 
         VoxelTestScene.Builder waterFullBuilder=VoxelTestScene.builder(),lavaFullBuilder=VoxelTestScene.builder(),waterSlabBuilder=VoxelTestScene.builder(),lavaSlabBuilder=VoxelTestScene.builder(),airToWaterBuilder=VoxelTestScene.builder();
