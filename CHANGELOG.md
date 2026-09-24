@@ -25,6 +25,7 @@
 - Split projectile semantics into launch / flight / impact: launch and impact remain transient while entity-derived flight sources preserve velocity metadata and Doppler sensitivity.
 - Added a probe-only, read-only `LegacyDirectPathDiagnostic` with source-generation ownership so a late asynchronous solve cannot resurrect a diagnostic after source cleanup.
 - Added the mono `acousticshaders:projectile.flight` asset and made projectile lifecycle plus diagnostic race tests mandatory legacy-contract checks.
+- Runtime disable is now a full audio-state boundary: disabling effects or selecting no Acoustic Shader stops synthetic projectile emitters, invalidates pending/stale source work, clears software-wet voices, detaches OpenAL EFX filters and resets AcousticShaders-owned Doppler velocity on the Paulscode/OpenAL owner thread. Both source-level and post-package regressions cover the transition.
 - Extended Forge-fluid discovery to `IFluidBlock` and `FluidRegistry.lookupFluidForBlock`, including stable `forge-fluid:<name>` identities, `MEDIUM_ID` overrides and top-down geometry for Forge's negative gaseous fill convention.
 - Strengthened Acoustic Shader Pack hot reload for directory and ZIP packs: an invalid edit retains the last-good runtime and a later valid edit atomically replaces it.
 - Added an advanced explosion/projectile x AIR/WATER/LAVA matrix, bringing the current portable suites to 54 headless + 39 advanced tests.

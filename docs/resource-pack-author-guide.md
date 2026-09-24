@@ -146,7 +146,7 @@ For example, a TNT explosion's low-frequency-heavy source spectrum belongs in `a
 
 ## Projectile limitation
 
-A source profile can only process a sound that exists. If a vanilla/modded projectile emits a moving sound, its profile can request high movement sensitivity and Doppler. A completely silent flying entity does not automatically gain a procedural whoosh from Resource Pack metadata alone; that requires a future/platform emitter extension plus an audio asset or procedural generator.
+A source profile is data and cannot create entity behavior by itself. If a vanilla/modded projectile emits a moving sound, its profile can request high movement sensitivity and Doppler. RC20's Minecraft 1.12.2 adapter additionally derives the built-in `acousticshaders:projectile.flight` sound for supported vanilla projectile families, but Resource Pack metadata alone still does not synthesize arbitrary mod-projectile audio. Third-party projectile subclasses are left to their own sound implementation by default to avoid duplicates.
 
 ## Validation workflow
 

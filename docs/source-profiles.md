@@ -140,9 +140,9 @@ The legacy bridge uses source metadata in several places:
 
 The direct sound is still started immediately by Minecraft/Paulscode; expensive propagation is asynchronous and later updates the acoustic projection.
 
-### Important projectile limitation
+### Projectile emitters and source-profile scope
 
-Source profiles process **sounds that actually exist**. Vanilla Minecraft 1.12.2 does not necessarily emit a continuous sound from every arrow entity while it flies. Therefore the projectile profile can correctly process a moving projectile sound supplied by Minecraft or a mod, but it does not synthesize a missing arrow-whoosh asset from an otherwise silent entity. A future entity-emitter extension can add procedural/derived emitters without changing the source-profile file format.
+Source profiles still describe **how an existing/derived sound is processed**; they do not themselves execute entity logic or synthesize arbitrary mod sounds. RC20's Minecraft 1.12.2 adapter now supplies a bounded derived `acousticshaders:projectile.flight` `MovingSound` for supported vanilla projectile families (arrows, throwable entities, fireballs, llama spit and shulker bullets). That ordinary Minecraft sound then resolves the `projectile` source profile and traverses the normal SoundHandler -> Paulscode -> Mixin -> `LegacySoundHook` -> Acoustic Shaders path. Third-party projectile subclasses are intentionally not given a synthetic duplicate by default, so mod-provided flight audio remains authoritative.
 
 ## Hot reload and generated defaults
 
