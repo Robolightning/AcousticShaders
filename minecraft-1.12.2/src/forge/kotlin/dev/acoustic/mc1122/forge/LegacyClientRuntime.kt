@@ -221,11 +221,11 @@ internal class LegacyClientRuntime {
             }
             if (world == null || entity == null) {
                 if (lastWorld != null) {
+                    retireWorldSessionAudioState()
                     lastWorld = null
                     lastListener = null
                     capture.reset()
                     projectileEmitters.clear()
-                    LegacyDirectPathDiagnostic.clear()
                     pendingRoom = null
                     publishedValue = LegacyPublishedState.EMPTY
                     epoch++
@@ -236,9 +236,14 @@ internal class LegacyClientRuntime {
             val listener = listener(entity)
             listenerForwardValue = listenerForward(entity)
             val changedWorld = world !== lastWorld
+            val replacingWorld = changedWorld && lastWorld != null
             val previousListener = lastListener
             val moved = previousListener == null || listener.distance(previousListener) >= 1.0
             if (changedWorld) {
+                // The initial null -> first-world attach has no old session to retire. A real
+                // world replacement does: old numeric OpenAL ids and async source results must
+                // never be allowed to identify sounds in the replacement world.
+                if (replacingWorld) retireWorldSessionAudioState()
                 lastWorld = world
                 lastListener = null
                 capture.reset()
@@ -497,6 +502,25 @@ internal class LegacyClientRuntime {
         completedSources.clear()
         deferredWetResults.clear()
         wetRenderer.clear()
+    }
+
+    /**
+     * A Minecraft world/session boundary retires logical sounds even when the OpenAL
+     * context itself survives (dimension/server transitions can reuse the same audio
+     * device and numeric source ids). Worker state is invalidated on the client thread;
+     * native EFX/wet/velocity cleanup is merely requested and remains owner-thread only.
+     */
+    private fun retireWorldSessionAudioState() {
+        synchronized(sourceLock) {
+            activeSources.clear()
+            pendingSources.clear()
+            sourceFrameRefreshRevision++
+        }
+        LegacyDirectPathDiagnostic.clear()
+        completedSources.clear()
+        deferredWetResults.clear()
+        wetRenderer.clear()
+        LegacySoundHook.requestEffectsReset()
     }
 
     fun sourcePcmCaptured(sourceId: Int, generation: Long, capture: LegacySoftwareWetRenderer.PcmCapture?) {
