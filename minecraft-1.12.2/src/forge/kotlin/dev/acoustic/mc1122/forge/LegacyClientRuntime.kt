@@ -771,18 +771,26 @@ internal class LegacyClientRuntime {
         while (drained < 32) {
             val result = completedSources.poll() ?: break
             drained++
+            if (!applyFullSourceResult(result, efx, wetBackend)) fullSourceStale++
+        }
+    }
+
+    /**
+     * Final logical validation and native OpenAL mutation are one source-lifecycle
+     * critical section.  World/disable/close boundaries all cross sourceLock before
+     * retiring active generations, so none of them can land between this validation
+     * and the EFX/velocity/wet submission it authorizes.
+     */
+    private fun applyFullSourceResult(result: SourceResult, efx: LegacyEfxBackend, wetBackend: LegacySoftwareWetBackend): Boolean =
+        synchronized(sourceLock) {
+            if (closed) return@synchronized false
             val state = publishedValue
-            val active = synchronized(sourceLock) { activeSources[result.sourceId] }
+            val active = activeSources[result.sourceId]
             if (active == null || active.generation != result.generation || !state.ready() || state.epoch() != result.epoch) {
-                fullSourceStale++
-                continue
+                return@synchronized false
             }
-            val scene = state.scene()
-            val listener = state.listener()
-            if (scene == null || listener == null) {
-                fullSourceStale++
-                continue
-            }
+            val scene = state.scene() ?: return@synchronized false
+            val listener = state.listener() ?: return@synchronized false
             val currentRevision = scene.revision()
             val lag = currentRevision - result.sceneRevision
             val exact = lag == 0L
@@ -790,10 +798,7 @@ internal class LegacyClientRuntime {
             val nearEnough = listener.distance(result.listener) <= 1.0 &&
                 active.position.distance(result.sourcePosition) <= max(0.2, performance.sourceMoveThreshold() * 2.0)
             val boundedLag = lag > 0L && lag <= max(2, performance.captureIntervalTicks() * 2).toLong() && nearEnough
-            if (!exact && !boundedLag) {
-                fullSourceStale++
-                continue
-            }
+            if (!exact && !boundedLag) return@synchronized false
             if (boundedLag) fullSourceLagAccepted++
             LegacyDirectPathDiagnostic.publish(result.sourceId, result.generation, result.direct)
             active.lastEffect = result.effect
@@ -812,8 +817,8 @@ internal class LegacyClientRuntime {
                     ))
                 }
             }
+            true
         }
-    }
 
     private fun drainWetResults(efx: LegacyEfxBackend, wetBackend: LegacySoftwareWetBackend) {
         val initial = min(32, deferredWetResults.size + 32)
@@ -821,52 +826,61 @@ internal class LegacyClientRuntime {
         while (drained < initial) {
             val result = deferredWetResults.poll() ?: wetRenderer.poll() ?: break
             drained++
-            val published = publishedValue
-            val active = synchronized(sourceLock) { activeSources[result.sourceId] }
-            val currentAudioContextGeneration = wetBackend.currentContextGeneration()
-            if (active == null || active.generation != result.generation ||
-                currentAudioContextGeneration <= 0L || currentAudioContextGeneration != result.audioContextGeneration ||
-                !published.ready() || published.epoch() != result.epoch) {
-                wetBackend.stale++
-                continue
-            }
-            val scene = published.scene()
-            if (scene == null || scene.revision() < result.sceneRevision) { wetBackend.stale++; continue }
-            val applied = wetBackend.apply(result.sourceId, result.generation, result.audioContextGeneration, result.rendered)
-            if (applied.staleContext) continue
-            if (applied.paused) { deferredWetResults.add(result); continue }
-            if (applied.applied) {
-                val effect = active.lastEffect
-                if (effect != null) efx.applyDirectOnly(result.sourceId, effect)
-                if (applied.evictedDrySource > 0) restoreEfx(applied.evictedDrySource, efx)
+            synchronized(sourceLock) {
+                if (closed) { wetBackend.stale++; return@synchronized }
+                val published = publishedValue
+                val active = activeSources[result.sourceId]
+                val currentAudioContextGeneration = wetBackend.currentContextGeneration()
+                if (active == null || active.generation != result.generation ||
+                    currentAudioContextGeneration <= 0L || currentAudioContextGeneration != result.audioContextGeneration ||
+                    !published.ready() || published.epoch() != result.epoch) {
+                    wetBackend.stale++
+                    return@synchronized
+                }
+                val scene = published.scene()
+                if (scene == null || scene.revision() < result.sceneRevision) { wetBackend.stale++; return@synchronized }
+                val applied = wetBackend.apply(result.sourceId, result.generation, result.audioContextGeneration, result.rendered)
+                if (applied.staleContext) return@synchronized
+                if (applied.paused) { deferredWetResults.add(result); return@synchronized }
+                if (applied.applied) {
+                    val effect = active.lastEffect
+                    if (effect != null) efx.applyDirectOnly(result.sourceId, effect)
+                    if (applied.evictedDrySource > 0) restoreEfx(applied.evictedDrySource, efx)
+                }
             }
         }
     }
 
     private fun restoreEfx(sourceId: Int, efx: LegacyEfxBackend) {
-        val active = synchronized(sourceLock) { activeSources[sourceId] } ?: return
-        val effect = active.lastEffect ?: return
-        val state = publishedValue
-        val scene = state.scene() ?: return
-        if (state.ready()) efx.apply(sourceId, effect, state.room(), scene.revision())
+        synchronized(sourceLock) {
+            if (closed) return
+            val active = activeSources[sourceId] ?: return
+            val effect = active.lastEffect ?: return
+            val state = publishedValue
+            val scene = state.scene() ?: return
+            if (state.ready()) efx.apply(sourceId, effect, state.room(), scene.revision())
+        }
     }
 
     @Synchronized
     fun close() {
-        if (closed) return
-        closed = true
-        analysisGeneration++
-        epoch++
-        pendingRoom = null
-        roomWorkerRunning = false
-        roomWorkerGeneration = 0L
         synchronized(sourceLock) {
+            if (closed) return
+            // closed is part of the same lifecycle linearization point as source retirement.
+            // An audio-thread apply that already owns sourceLock completes before close;
+            // otherwise it observes closed=true and cannot start a native write afterwards.
+            closed = true
+            analysisGeneration++
+            epoch++
             activeSources.clear()
             pendingSources.clear()
             sourceWorkerRunning = false
             sourceWorkerGeneration = 0L
             sourceFrameRefreshRevision++
         }
+        pendingRoom = null
+        roomWorkerRunning = false
+        roomWorkerGeneration = 0L
         completedSources.clear()
         deferredWetResults.clear()
         LegacyDirectPathDiagnostic.clear()
