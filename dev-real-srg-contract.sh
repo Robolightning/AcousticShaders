@@ -128,7 +128,7 @@ if n_update!=1 or n_srg!=1:
     raise SystemExit(f'ERROR: projectile tick SRG normalization mismatch update={n_update} srg={n_srg}')
 projectile.write_text(ps)
 PY
-find "$OUT/forge-source" -name '*.kt' ! -name 'LegacySoundEvents.kt' | sort > "$OUT/forge-kotlin-sources.txt"
+find "${OUT#"$ROOT/"}/forge-source" -name '*.kt' ! -name 'LegacySoundEvents.kt' | sort > "$OUT/forge-kotlin-sources.txt"
 KOTLIN_HOME_DIR="$(cd "$(dirname "$KOTLINC_BIN")/.." && pwd)"
 KOTLIN_CP="$KOTLIN_HOME_DIR/lib/kotlin-stdlib.jar:$KOTLIN_HOME_DIR/lib/kotlin-stdlib-jdk7.jar:$KOTLIN_HOME_DIR/lib/kotlin-stdlib-jdk8.jar"
 REAL_CP="$OUT/portable-classes:$OUT/external-stubs:$MC:$FORGE${REAL_EXTERNAL_CP:+:$REAL_EXTERNAL_CP}"

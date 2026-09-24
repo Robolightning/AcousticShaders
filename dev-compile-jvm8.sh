@@ -2,7 +2,15 @@
 set -euo pipefail
 if [[ $# -lt 2 ]]; then echo "usage: $0 OUT_DIR CLASSPATH SOURCE_DIR..." >&2; exit 2; fi
 OUT="$1"; CP="$2"; shift 2
-DIRS=(); for p in "$@"; do [[ -d "$p" ]] && DIRS+=("$p"); done
+DIRS=()
+WORK_ROOT="$(pwd -P)"
+for p in "$@"; do
+  [[ -d "$p" ]] || continue
+  # javac/kotlinc do not apply MSYS path conversion to paths stored inside @argfiles.
+  # Keep workspace-owned sources relative so the same response files work on Linux and
+  # on Windows Git-Bash; leave genuinely external source roots unchanged.
+  if [[ "$p" == "$WORK_ROOT/"* ]]; then DIRS+=("${p#"$WORK_ROOT/"}"); else DIRS+=("$p"); fi
+done
 mkdir -p "$OUT"
 LIST_DIR="$(dirname "$OUT")"
 BASE="$(basename "$OUT")"

@@ -27,7 +27,7 @@ KOTLINC_BIN="${ACOUSTIC_KOTLINC:-$(command -v kotlinc)}"
 KOTLIN_HOME_DIR="$(cd "$(dirname "$KOTLINC_BIN")/.." && pwd)"
 KOTLIN_LIB="$KOTLIN_HOME_DIR/lib"
 KOTLIN_CP="$KOTLIN_LIB/kotlin-stdlib.jar:$KOTLIN_LIB/kotlin-stdlib-jdk7.jar:$KOTLIN_LIB/kotlin-stdlib-jdk8.jar"
-find "$ROOT/minecraft-1.12.2/compile-stubs/src/main/java" -name '*.java' | sort > "$OUT/forge-stubs.txt"
+find minecraft-1.12.2/compile-stubs/src/main/java -name '*.java' | sort > "$OUT/forge-stubs.txt"
 javac --release 8 -Xlint:all,-options -Werror -d "$OUT/forge-stubs" @"$OUT/forge-stubs.txt"
 "$ROOT/dev-compile-jvm8.sh" "$OUT/forge-classes" "$OUT/forge-stubs" \
   "$ROOT/acoustic-api/src/main/java" "$ROOT/acoustic-api/src/main/kotlin" \
@@ -83,7 +83,7 @@ if idx < 0 or 'org.spongepowered.asm.mixin.Mixin(' not in s[idx:]:
 PYMIX
 done
 echo '[PASS] all production Mixins use CLASS-retention bytecode contract'
-find "$ROOT/minecraft-1.12.2/runtime-smoke/src/main/java" -name '*.java' | sort > "$OUT/runtime-smoke-sources.txt"
+find minecraft-1.12.2/runtime-smoke/src/main/java -name '*.java' | sort > "$OUT/runtime-smoke-sources.txt"
 javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$OUT/forge-classes:$KOTLIN_CP" -d "$OUT/runtime-smoke" @"$OUT/runtime-smoke-sources.txt"
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.ForgeRegistryFallbackSmokeTest
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.LegacyForgeSmokeTest
@@ -99,7 +99,7 @@ javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$OUT/forge-c
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.RuntimeActivationGenerationSmokeTest
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.RuntimeCloseRaceSmokeTest
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.DirectPathDiagnosticSmokeTest
-find "$ROOT/minecraft-1.12.2/srg-gui-smoke/src/main/java" -name '*.java' | sort > "$OUT/srg-gui-smoke-sources.txt"
+find minecraft-1.12.2/srg-gui-smoke/src/main/java -name '*.java' | sort > "$OUT/srg-gui-smoke-sources.txt"
 javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$OUT/forge-classes:$KOTLIN_CP" -d "$OUT/srg-gui-smoke" @"$OUT/srg-gui-smoke-sources.txt"
 rm -rf "$OUT/srg-gui-smoke-work"
 mkdir -p "$OUT/srg-gui-smoke-work"
