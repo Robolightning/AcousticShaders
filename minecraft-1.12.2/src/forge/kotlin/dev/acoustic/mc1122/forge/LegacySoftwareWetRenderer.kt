@@ -36,31 +36,46 @@ internal class LegacySoftwareWetRenderer(private var config: LegacyAudioConfig) 
     @Volatile var failures: Long = 0; private set
 
     fun reconfigure(next: LegacyAudioConfig) {
-        if (next == config) return
-        val old = workers
-        val replacePool = next.rendererThreads != config.rendererThreads
-        config = next
-        if (replacePool) workers = newPool(next.rendererThreads)
-        // Any audio-config change invalidates renders started under the previous settings.
-        // Merely clearing the queues is insufficient: an already-running worker could finish
-        // after the clear and publish a stale wet result that later becomes eligible again.
-        synchronized(lock) { poolGeneration++; pending.clear(); running = 0 }
+        var oldPool: ExecutorService? = null
+        synchronized(lock) {
+            if (closed || next == config) return
+            val replacePool = next.rendererThreads != config.rendererThreads
+            val previous = workers
+            config = next
+            if (replacePool) {
+                workers = newPool(next.rendererThreads)
+                oldPool = previous
+            }
+            // Any audio-config change invalidates renders started under the previous settings.
+            // Merely clearing the queues is insufficient: an already-running worker could finish
+            // after the clear and publish a stale wet result that later becomes eligible again.
+            poolGeneration++
+            pending.clear()
+            running = 0
+        }
         completed.clear()
-        if (replacePool) old.shutdownNow()
+        oldPool?.shutdownNow()
     }
 
     fun submit(request: Request) {
         if (closed || !config.softwareWetEnabled) return
-        var start = false
         synchronized(lock) {
+            // close() sets closed before taking this lock. Re-check here so a submitter
+            // that was already waiting cannot enqueue work after the close barrier.
+            if (closed || !config.softwareWetEnabled) return
             if (pending.size >= config.maxPendingJobs && !pending.containsKey(request.sourceId)) {
                 val first = pending.keys.iterator().next(); pending.remove(first); dropped++
             }
             pending[request.sourceId] = request
             submitted++
-            if (running < config.rendererThreads) { running++; start = true }
+            if (running < config.rendererThreads) {
+                running++
+                val generation = poolGeneration
+                // Submit while holding lock. close() takes the same lock before shutdownNow(),
+                // which prevents a rejected-execution race after the running flag is published.
+                workers.submit { workerLoop(generation) }
+            }
         }
-        if (start) { val generation = poolGeneration; workers.submit { workerLoop(generation) } }
     }
 
     fun poll(): Result? = completed.poll()
@@ -86,11 +101,18 @@ internal class LegacySoftwareWetRenderer(private var config: LegacyAudioConfig) 
                 val renderer = SoftwareWetPcmRenderer(c.fftBlockSize, c.maxIrSeconds)
                 val out = if (request.foa != null) renderer.renderMono16(request.capture.pcmMono16, request.capture.sampleRate, request.foa, request.forward, c.wetGain)
                 else renderer.renderMono16(request.capture.pcmMono16, request.capture.sampleRate, request.rir, request.early, request.forward, c.wetGain)
-                if (generation == poolGeneration) {
-                    completed.add(Result(request.sourceId, request.generation, request.audioContextGeneration, request.epoch, request.sceneRevision, out))
-                    rendered++
-                    LegacySoundHook.wakeAudioThread()
-                } else dropped++
+                val result = Result(request.sourceId, request.generation, request.audioContextGeneration, request.epoch, request.sceneRevision, out)
+                val accepted = synchronized(lock) {
+                    if (closed || generation != poolGeneration) {
+                        dropped++
+                        false
+                    } else {
+                        completed.add(result)
+                        rendered++
+                        true
+                    }
+                }
+                if (accepted) LegacySoundHook.wakeAudioThread()
             } catch (t: Throwable) {
                 failures++
                 AcousticLog.debug("software wet render failed source=${request.sourceId}: ${t.message ?: t.javaClass.simpleName}")
@@ -98,7 +120,17 @@ internal class LegacySoftwareWetRenderer(private var config: LegacyAudioConfig) 
         }
     }
 
-    override fun close() { closed = true; synchronized(lock) { pending.clear() }; completed.clear(); workers.shutdownNow() }
+    override fun close() {
+        if (closed) return
+        closed = true
+        synchronized(lock) {
+            poolGeneration++
+            pending.clear()
+            running = 0
+        }
+        completed.clear()
+        workers.shutdownNow()
+    }
 
     companion object {
         private fun newPool(count: Int): ExecutorService = Executors.newFixedThreadPool(count, object : ThreadFactory {

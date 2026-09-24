@@ -368,8 +368,11 @@ internal class LegacyClientRuntime {
             pendingRoom = request
             if (roomWorkerRunning) return
             roomWorkerRunning = true
+            // Submit while holding the same monitor used by close(). Otherwise close()
+            // could shut the executor down after the running flag is published but
+            // before this task is submitted, leaving a rejected task and stuck flag.
+            analysisExecutor.submit { roomWorkerLoop() }
         }
-        analysisExecutor.submit { roomWorkerLoop() }
     }
 
     private fun roomWorkerLoop() {
@@ -396,12 +399,24 @@ internal class LegacyClientRuntime {
                     request.performance.roomRays(),
                     request.parallel
                 )
-                if (closed || epoch != request.frame.worldEpoch()) continue
-                publishedValue = LegacyPublishedState(request.frame.scene(), request.frame.listener().position(), room, null, request.frame.worldEpoch(), request.effectsEnabled)
+                val roomPublished = synchronized(this) {
+                    if (closed || epoch != request.frame.worldEpoch()) false
+                    else {
+                        publishedValue = LegacyPublishedState(request.frame.scene(), request.frame.listener().position(), room, null, request.frame.worldEpoch(), request.effectsEnabled)
+                        true
+                    }
+                }
+                if (!roomPublished) continue
                 if (debug()) AcousticLog.debug("room async mean=${room.meanFreePathMeters()} openness=${room.openness()} rt60=${room.decayTimeSeconds()} density=${room.density()} hf=${room.gainHf()}")
                 val reflection = computeListenerInvariant(request)
-                if (!closed && epoch == request.frame.worldEpoch()) {
-                    publishedValue = LegacyPublishedState(request.frame.scene(), request.frame.listener().position(), room, reflection, request.frame.worldEpoch(), request.effectsEnabled)
+                val reflectionPublished = synchronized(this) {
+                    if (closed || epoch != request.frame.worldEpoch()) false
+                    else {
+                        publishedValue = LegacyPublishedState(request.frame.scene(), request.frame.listener().position(), room, reflection, request.frame.worldEpoch(), request.effectsEnabled)
+                        true
+                    }
+                }
+                if (reflectionPublished) {
                     scheduleActiveSources(request.frame, request.sourceSeeds, reflection, request.pack)
                     if (debug()) AcousticLog.debug("shared listener reflections ready samples=${reflection?.samples()?.size ?: 0}")
                 }
@@ -426,10 +441,14 @@ internal class LegacyClientRuntime {
         val profile = sourceProfiles.resolve(soundId)
         val generation: Long
         synchronized(sourceLock) {
+            if (closed) return 0L
             generation = ++sourceGeneration
             activeSources[sourceId] = SourceState(generation, soundId, profile, position, gain, importance, streaming, looping)
+            // Arm under the lifecycle lock. If close() wins first this method returns 0;
+            // if sourceStarted() wins first, close() waits for this arm and then clears it.
+            // There is therefore no post-close diagnostic resurrection window.
+            LegacyDirectPathDiagnostic.arm(sourceId, generation)
         }
-        LegacyDirectPathDiagnostic.arm(sourceId, generation)
         val state = publishedValue
         val acousticsActive = configValue.effectsEnabled() && !packValue.disabled() && !effectiveSourceProfile(profile, packValue).bypassAcoustics()
         if (acousticsActive && fullSourceReady(state, packValue)) {
@@ -599,8 +618,8 @@ internal class LegacyClientRuntime {
         capturedSeed: SourceRequestSeed? = null
     ) {
         if (closed) return
-        var start = false
         synchronized(sourceLock) {
+            if (closed) return
             val active = activeSources[sourceId] ?: return
             if (active.generation != generation) return
             val hasReflection = reflection != null
@@ -641,10 +660,12 @@ internal class LegacyClientRuntime {
             )
             if (!sourceWorkerRunning) {
                 sourceWorkerRunning = true
-                start = true
+                // Keep task submission inside sourceLock. close() sets closed first and
+                // then takes this same lock before shutting the executor down, so it is
+                // impossible to publish a running flag and then submit to a closed pool.
+                analysisExecutor.submit { sourceWorkerLoop() }
             }
         }
-        if (start) analysisExecutor.submit { sourceWorkerLoop() }
     }
 
     private fun sourceWorkerLoop() {
@@ -679,31 +700,36 @@ internal class LegacyClientRuntime {
                 val effect = fullProjector.project(response, request.pack.liveTuning(), behavior)
                 val backend = response.wave()?.backendId() ?: "none"
                 val millis = (System.nanoTime() - start) / 1_000_000.0
-                if (closed) return
-                completedSources.add(
-                    SourceResult(
-                        request.sourceId,
-                        request.generation,
-                        request.scene.revision(),
-                        request.epoch,
-                        request.position,
-                        request.listener,
-                        request.soundId,
-                        behavior,
-                        request.velocity,
-                        effect,
-                        response.direct(),
-                        rir,
-                        early,
-                        foa,
-                        backend,
-                        millis,
-                        report.elapsedNanos()
-                    )
+                val result = SourceResult(
+                    request.sourceId,
+                    request.generation,
+                    request.scene.revision(),
+                    request.epoch,
+                    request.position,
+                    request.listener,
+                    request.soundId,
+                    behavior,
+                    request.velocity,
+                    effect,
+                    response.direct(),
+                    rir,
+                    early,
+                    foa,
+                    backend,
+                    millis,
+                    report.elapsedNanos()
                 )
-                fullSourceSolved++
-                lastFullSourceMs = millis
-                lastWaveBackend = backend
+                val accepted = synchronized(sourceLock) {
+                    if (closed) false
+                    else {
+                        completedSources.add(result)
+                        fullSourceSolved++
+                        lastFullSourceMs = millis
+                        lastWaveBackend = backend
+                        true
+                    }
+                }
+                if (!accepted) return
                 LegacySoundHook.wakeAudioThread()
                 if (debug()) {
                     AcousticLog.debug("full shader source=${request.sourceId} ms=$millis wave=$backend")
