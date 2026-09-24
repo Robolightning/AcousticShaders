@@ -63,21 +63,58 @@ public final class AudioContextReplacementSmokeTest {
         check(wet.isActive(source, oldLogicalGeneration), "old-context wet voice missing before replacement");
         long rendererGenerationBefore = rendererGenerationField.getLong(renderer);
 
-        // Real context destruction releases the old native objects. The test maps are global,
-        // so clear them explicitly, then seed unrelated third-party state on the same numeric
-        // source id in the replacement context.
-        org.lwjgl.openal.EFX10.FILTERS.clear();
-        org.lwjgl.openal.AL10.DIRECT_FILTERS.clear();
-        org.lwjgl.openal.AL11.AUX_SENDS.clear();
-        org.lwjgl.openal.AL10.VELOCITIES.clear();
-        org.lwjgl.openal.ALC10.CURRENT = new org.lwjgl.openal.ALCcontext();
-        org.lwjgl.openal.AL10.STATES.put(source, org.lwjgl.openal.AL10.AL_PLAYING);
-        org.lwjgl.openal.AL10.alSourcei(source, org.lwjgl.openal.EFX10.AL_DIRECT_FILTER, 7701);
-        org.lwjgl.openal.AL11.alSource3i(source, org.lwjgl.openal.EFX10.AL_AUXILIARY_SEND_FILTER, 7702, 0, 7703);
-        org.lwjgl.openal.AL10.alSource3f(source, org.lwjgl.openal.AL10.AL_VELOCITY, 9f, 8f, 7f);
+        // Put a real software-wet convolution in flight and hold it exactly at its final
+        // publication lock. Context replacement must invalidate that worker before it can
+        // publish a result for a same-numbered source in the replacement context.
+        LegacySoftwareWetRenderer wetRenderer = (LegacySoftwareWetRenderer) renderer;
+        Object rendererLock = privateField(wetRenderer, "lock");
+        final int rate = 16000;
+        byte[] pcm = new byte[rate * 2 * 2];
+        float[] impulse = new float[rate * 3];
+        impulse[0] = 1.0f;
+        for (int i = 97; i < impulse.length; i += 97) impulse[i] = 0.02f;
+        wetRenderer.submit(new LegacySoftwareWetRenderer.Request(
+            source, oldLogicalGeneration, oldContextGeneration, 1L, 1L,
+            new LegacySoftwareWetRenderer.PcmCapture(pcm, rate),
+            new dev.acoustic.core.rir.ImpulseResponse(rate, impulse), null, null, new Vec3(0.0, 0.0, 1.0)));
+        Thread inFlightWet = waitForWetRenderThread(10000L);
+        check(inFlightWet != null, "software-wet worker never entered real convolution before context replacement");
 
+        long newContextGeneration;
+        synchronized (rendererLock) {
+            waitForState(inFlightWet, Thread.State.BLOCKED, 15000L,
+                "software-wet worker did not reach publication lock before context replacement");
+
+            // Real context destruction releases the old native objects. The test maps are global,
+            // so clear them explicitly, then advance the physical backend context and retire the
+            // runtime's logical/worker state while the old worker is still publication-blocked.
+            org.lwjgl.openal.EFX10.FILTERS.clear();
+            org.lwjgl.openal.AL10.DIRECT_FILTERS.clear();
+            org.lwjgl.openal.AL11.AUX_SENDS.clear();
+            org.lwjgl.openal.AL10.VELOCITIES.clear();
+            org.lwjgl.openal.ALC10.CURRENT = new org.lwjgl.openal.ALCcontext();
+            newContextGeneration = wet.currentContextGeneration();
+            check(newContextGeneration > oldContextGeneration, "OpenAL context replacement did not advance generation");
+            runtime.audioContextChanged(); // re-enters rendererLock and advances wet-render generation atomically
+            check(rendererGenerationField.getLong(renderer) > rendererGenerationBefore,
+                "OpenAL context replacement did not invalidate running/pending software-wet generation");
+            check(wetRenderer.poll() == null, "context replacement left an old-context wet result queued");
+
+            // Seed unrelated third-party state on the recycled numeric id in the new context.
+            org.lwjgl.openal.AL10.STATES.put(source, org.lwjgl.openal.AL10.AL_PLAYING);
+            org.lwjgl.openal.AL10.alSourcei(source, org.lwjgl.openal.EFX10.AL_DIRECT_FILTER, 7701);
+            org.lwjgl.openal.AL11.alSource3i(source, org.lwjgl.openal.EFX10.AL_AUXILIARY_SEND_FILTER, 7702, 0, 7703);
+            org.lwjgl.openal.AL10.alSource3f(source, org.lwjgl.openal.AL10.AL_VELOCITY, 9f, 8f, 7f);
+        }
+
+        waitForDropped(wetRenderer, 1L, 5000L);
+        check(wetRenderer.poll() == null, "old-context in-flight convolution published after context replacement");
+        check(wetRenderer.getRendered() == 0L, "old-context in-flight convolution was counted as published");
+        check(wetRenderer.getDropped() >= 1L, "old-context in-flight convolution was not rejected as stale");
+
+        // Cross the normal LegacySoundHook context synchronization path as well. It must not
+        // clobber the replacement-context third-party state seeded above.
         audioTick();
-        long newContextGeneration = wet.currentContextGeneration();
         check(newContextGeneration > oldContextGeneration, "OpenAL context replacement did not advance generation");
         check(rendererGenerationField.getLong(renderer) > rendererGenerationBefore,
             "OpenAL context replacement did not invalidate running/pending software-wet generation");
@@ -104,7 +141,7 @@ public final class AudioContextReplacementSmokeTest {
         check(directFilter(source) == 7701, "new source registration clobbered pre-owned replacement-context EFX");
         checkVelocity(source, 9f, 8f, 7f, "new source registration clobbered pre-owned replacement-context velocity");
 
-        System.out.println("PASS: OpenAL context replacement retires old source generations/wet work and preserves new-context third-party state");
+        System.out.println("PASS: OpenAL context replacement rejects in-flight old-context wet publication, retires old source generations, and preserves new-context third-party state");
     }
 
     private static int activeSourceCount(LegacyClientRuntime runtime) throws Exception {
@@ -145,6 +182,43 @@ public final class AudioContextReplacementSmokeTest {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         return field.get(target);
+    }
+
+    private static Thread waitForWetRenderThread(long timeoutMillis) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            for (Map.Entry<Thread,StackTraceElement[]> entry : Thread.getAllStackTraces().entrySet()) {
+                Thread thread = entry.getKey();
+                if (!thread.getName().startsWith("acoustic-wet-render-")) continue;
+                for (StackTraceElement frame : entry.getValue()) {
+                    String c = frame.getClassName();
+                    if (c.equals("dev.acoustic.core.dsp.SoftwareWetPcmRenderer") ||
+                        c.equals("dev.acoustic.core.dsp.PartitionedConvolver") ||
+                        c.equals("dev.acoustic.core.dsp.Radix2Fft")) return thread;
+                }
+            }
+            Thread.sleep(1L);
+        }
+        return null;
+    }
+
+    private static void waitForDropped(LegacySoftwareWetRenderer renderer, long expected, long timeoutMillis) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            if (renderer.getDropped() >= expected) return;
+            Thread.sleep(1L);
+        }
+        throw new AssertionError("software-wet worker did not report stale drop after context replacement; dropped=" + renderer.getDropped());
+    }
+
+    private static void waitForState(Thread thread, Thread.State state, long timeoutMillis, String message) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            if (thread.getState() == state) return;
+            if (!thread.isAlive()) break;
+            Thread.sleep(1L);
+        }
+        throw new AssertionError(message + "; state=" + thread.getState());
     }
 
     private static void audioTick() throws Exception {

@@ -720,7 +720,8 @@ internal class LegacyClientRuntime {
                     report.elapsedNanos()
                 )
                 val accepted = synchronized(sourceLock) {
-                    if (closed) false
+                    val active = activeSources[request.sourceId]
+                    if (closed || epoch != request.epoch || active == null || active.generation != request.generation) false
                     else {
                         completedSources.add(result)
                         fullSourceSolved++
@@ -729,7 +730,10 @@ internal class LegacyClientRuntime {
                         true
                     }
                 }
-                if (!accepted) return
+                if (!accepted) {
+                    fullSourceStale++
+                    continue
+                }
                 LegacySoundHook.wakeAudioThread()
                 if (debug()) {
                     AcousticLog.debug("full shader source=${request.sourceId} ms=$millis wave=$backend")

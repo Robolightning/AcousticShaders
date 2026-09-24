@@ -1,6 +1,12 @@
 package dev.acoustic.mc1122.forge;
 
 import dev.acoustic.api.math.Vec3;
+import dev.acoustic.api.material.AcousticMaterials;
+import dev.acoustic.api.scene.AcousticScene;
+import dev.acoustic.api.scene.AcousticVoxel;
+import dev.acoustic.core.passes.ReflectionField;
+import dev.acoustic.core.passes.ReflectionSample;
+import dev.acoustic.mc1122.LegacyPublishedState;
 import dev.acoustic.core.dsp.SoftwareWetPcmRenderer;
 import dev.acoustic.core.passes.LegacyEffectParameters;
 import java.io.File;
@@ -13,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
 import net.minecraft.world.World;
@@ -51,9 +59,12 @@ public final class WorldSessionReplacementSmokeTest {
         clientTick(mod); // initial attach: no old session exists to retire.
 
         final int source = 811;
+        final BlockingScene oldScene = new BlockingScene(91L);
+        seedReadyPublishedState(runtime, oldScene);
         final long oldGeneration = runtime.sourceStarted(
             source, "minecraft/sounds/random/world_old.ogg", new Vec3(1.0, 2.0, 3.0), 1.0, 1.0, false, false);
         check(oldGeneration > 0L && activeSourceCount(runtime) == 1, "old-world logical source was not registered");
+        check(oldScene.awaitEntered(10000L), "old-world source worker never entered real shader pipeline");
 
         org.lwjgl.openal.AL10.STATES.put(source, org.lwjgl.openal.AL10.AL_PLAYING);
         efx.applyDirectOnly(source, new LegacyEffectParameters(0.5f, 0.35f, 0.0f, 0.0f));
@@ -74,6 +85,14 @@ public final class WorldSessionReplacementSmokeTest {
         check(wet.isActive(source, oldGeneration), "client thread illegally cleared old-world wet voice");
         check(!org.lwjgl.openal.EFX10.FILTERS.isEmpty(), "client thread illegally cleared old-world EFX state");
 
+        // Release the old-world source worker only after the world identity boundary crossed.
+        // A stale solve must not even repopulate completedSources; later drain-time rejection is
+        // not strong enough because it retains heavy old-world RIR/result state across sessions.
+        oldScene.release();
+        waitForSourceWorkerIdle(runtime, 10000L);
+        check(completedSourceCount(runtime) == 0,
+            "old-world in-flight source solve republished into completedSources after world replacement");
+
         audioTick();
         check(!wet.isActive(source, oldGeneration), "old-world wet voice survived owner-thread world reset");
         check(org.lwjgl.openal.EFX10.FILTERS.isEmpty(), "old-world EFX filters survived owner-thread world reset");
@@ -92,7 +111,7 @@ public final class WorldSessionReplacementSmokeTest {
         check(poolGeneration.getLong(renderer) > generationBeforeUnload,
             "world unload did not invalidate software-wet worker generation");
 
-        System.out.println("PASS: world replacement/unload retires logical source generations and defers native cleanup to audio owner thread");
+        System.out.println("PASS: world replacement/unload rejects in-flight old-world source publication, retires logical generations, and defers native cleanup to audio owner thread");
     }
 
     private static void clientTick(AcousticShadersForgeMod mod) {
@@ -111,6 +130,56 @@ public final class WorldSessionReplacementSmokeTest {
         Field field = LegacyClientRuntime.class.getDeclaredField("activeSources");
         field.setAccessible(true);
         return ((Map<?,?>) field.get(runtime)).size();
+    }
+
+    private static void seedReadyPublishedState(LegacyClientRuntime runtime, AcousticScene scene) throws Exception {
+        Field epochField = LegacyClientRuntime.class.getDeclaredField("epoch");
+        epochField.setAccessible(true);
+        long epoch = epochField.getLong(runtime);
+        ReflectionField reflection = new ReflectionField(0, Collections.<ReflectionSample>emptyList());
+        LegacyPublishedState state = new LegacyPublishedState(
+            scene, new Vec3(0.0, 2.0, 0.0), dev.acoustic.core.passes.LegacyRoomEstimate.DEFAULT, reflection, epoch, true);
+        Field published = LegacyClientRuntime.class.getDeclaredField("publishedValue");
+        published.setAccessible(true);
+        published.set(runtime, state);
+    }
+
+    private static int completedSourceCount(LegacyClientRuntime runtime) throws Exception {
+        Field field = LegacyClientRuntime.class.getDeclaredField("completedSources");
+        field.setAccessible(true);
+        return ((java.util.Queue<?>) field.get(runtime)).size();
+    }
+
+    private static void waitForSourceWorkerIdle(LegacyClientRuntime runtime, long timeoutMillis) throws Exception {
+        Field field = LegacyClientRuntime.class.getDeclaredField("sourceWorkerRunning");
+        field.setAccessible(true);
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            if (!field.getBoolean(runtime)) return;
+            Thread.sleep(1L);
+        }
+        throw new AssertionError("old-world source worker did not become idle after release");
+    }
+
+    private static final class BlockingScene implements AcousticScene {
+        private final long revision;
+        private final CountDownLatch entered = new CountDownLatch(1);
+        private final CountDownLatch release = new CountDownLatch(1);
+        BlockingScene(long revision) { this.revision = revision; }
+        @Override public AcousticVoxel voxelAt(int x, int y, int z) {
+            entered.countDown();
+            try {
+                if (!release.await(15L, TimeUnit.SECONDS)) throw new AssertionError("timed out waiting to release old-world source solve");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("old-world source solve interrupted before release", e);
+            }
+            return new AcousticVoxel(false, AcousticMaterials.AIR);
+        }
+        @Override public long revision() { return revision; }
+        @Override public boolean containsNonAirMedia() { return false; }
+        boolean awaitEntered(long timeoutMillis) throws InterruptedException { return entered.await(timeoutMillis, TimeUnit.MILLISECONDS); }
+        void release() { release.countDown(); }
     }
 
     private static void checkVelocity(int source, float x, float y, float z, String message) {
