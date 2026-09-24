@@ -118,6 +118,7 @@ for entry in \
   dev/acoustic/mc1122/forge/CudaGeometricBackend.class \
   dev/acoustic/mc1122/forge/LegacyProjectileEmitterManager.class \
   dev/acoustic/mc1122/forge/LegacyDirectPathDiagnostic.class \
+  dev/acoustic/mc1122/forge/LegacySoundEvents.class \
   assets/acousticshaders/sounds.json assets/acousticshaders/sounds/projectile/flight.ogg \
   assets/acousticshaders/cuda/fdtd.cu assets/acousticshaders/cuda/rays.cu \
   mixins.acousticshaders.json mcmod.info assets/acousticshaders/shaderpacks/AcousticShaders-Reference-Hybrid.zip; do

@@ -41,6 +41,9 @@ fi
 if [[ -n "${ACOUSTIC_FORGE_1122_UNIVERSAL:-}" ]]; then
   ./dev-real-forge-abi.sh
 fi
+if [[ -n "${ACOUSTIC_FORGELIN_JAR:-}" ]]; then
+  ./dev-real-forgelin-contract.sh
+fi
 if [[ -n "${ACOUSTIC_MC_1122_CLIENT:-}" && -n "${ACOUSTIC_MCP_CONFIG_1122:-}" && -n "${ACOUSTIC_FORGE_1122_UNIVERSAL:-}" ]]; then
   # Prepare/remap official binaries before the runtime smoke. The later source compile reuses
   # exact-toolchain portable classes from dev-legacy-contract instead of recompiling Core.

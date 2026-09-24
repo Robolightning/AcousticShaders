@@ -31,6 +31,9 @@ for c in \
   'net.minecraftforge.fml.common.gameevent.TickEvent$ClientTickEvent' \
   'net.minecraftforge.client.event.GuiScreenEvent$ActionPerformedEvent' \
   'net.minecraftforge.client.event.GuiScreenEvent$ActionPerformedEvent$Pre' \
+  'net.minecraftforge.event.RegistryEvent$Register' \
+  net.minecraftforge.registries.IForgeRegistry \
+  'net.minecraftforge.fml.common.Mod$EventBusSubscriber' \
   net.minecraftforge.fml.common.eventhandler.SubscribeEvent; do
   javap -classpath "$ACOUSTIC_FORGE_1122_UNIVERSAL" -p "$c" >> "$OUT/real.txt"
 done
@@ -42,6 +45,10 @@ checks={
  'ClientTickEvent phase constructor':'TickEvent$ClientTickEvent(net.minecraftforge.fml.common.gameevent.TickEvent$Phase)',
  'ActionPerformed has button list':'java.util.List<bja> getButtonList()',
  'ActionPerformed.Pre 3 args':'ActionPerformedEvent$Pre(blk, bja, java.util.List<bja>)',
+ 'RegistryEvent.Register registry getter':'net.minecraftforge.registries.IForgeRegistry<T> getRegistry()',
+ 'IForgeRegistry register erasure':'void register(V)',
+ 'EventBusSubscriber side selector':'net.minecraftforge.fml.relauncher.Side[] value()',
+ 'EventBusSubscriber modid':'java.lang.String modid()',
  'SubscribeEvent priority':'EventPriority priority()',
  'SubscribeEvent receiveCanceled':'boolean receiveCanceled()'
 }
@@ -59,6 +66,9 @@ for c in \
   'net.minecraftforge.fml.common.gameevent.TickEvent$ClientTickEvent' \
   'net.minecraftforge.client.event.GuiScreenEvent$ActionPerformedEvent' \
   'net.minecraftforge.client.event.GuiScreenEvent$ActionPerformedEvent$Pre' \
+  'net.minecraftforge.event.RegistryEvent$Register' \
+  net.minecraftforge.registries.IForgeRegistry \
+  'net.minecraftforge.fml.common.Mod$EventBusSubscriber' \
   net.minecraftforge.fml.common.eventhandler.SubscribeEvent; do
   javap -classpath "$OUT/stubs" -p "$c" >> "$OUT/stub.txt"
 done
@@ -71,6 +81,10 @@ checks={
  'ClientTickEvent phase constructor':'TickEvent$ClientTickEvent(net.minecraftforge.fml.common.gameevent.TickEvent$Phase)',
  'ActionPerformed button list getter':'java.util.List<net.minecraft.client.gui.GuiButton> getButtonList()',
  'ActionPerformed.Pre 3 args':'ActionPerformedEvent$Pre(net.minecraft.client.gui.GuiScreen, net.minecraft.client.gui.GuiButton, java.util.List<net.minecraft.client.gui.GuiButton>)',
+ 'RegistryEvent.Register registry getter':'net.minecraftforge.registries.IForgeRegistry<T> getRegistry()',
+ 'IForgeRegistry register erasure':'void register(T)',
+ 'EventBusSubscriber side selector':'net.minecraftforge.fml.relauncher.Side[] value()',
+ 'EventBusSubscriber modid':'java.lang.String modid()',
  'SubscribeEvent priority':'EventPriority priority()',
  'SubscribeEvent receiveCanceled':'boolean receiveCanceled()'
 }

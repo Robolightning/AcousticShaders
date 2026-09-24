@@ -128,11 +128,39 @@ if n_update!=1 or n_srg!=1:
     raise SystemExit(f'ERROR: projectile tick SRG normalization mismatch update={n_update} srg={n_srg}')
 projectile.write_text(ps)
 PY
-find "$OUT/forge-source" -name '*.kt' | sort > "$OUT/forge-kotlin-sources.txt"
+find "$OUT/forge-source" -name '*.kt' ! -name 'LegacySoundEvents.kt' | sort > "$OUT/forge-kotlin-sources.txt"
 KOTLIN_HOME_DIR="$(cd "$(dirname "$KOTLINC_BIN")/.." && pwd)"
 KOTLIN_CP="$KOTLIN_HOME_DIR/lib/kotlin-stdlib.jar:$KOTLIN_HOME_DIR/lib/kotlin-stdlib-jdk7.jar:$KOTLIN_HOME_DIR/lib/kotlin-stdlib-jdk8.jar"
 REAL_CP="$OUT/portable-classes:$OUT/external-stubs:$MC:$FORGE${REAL_EXTERNAL_CP:+:$REAL_EXTERNAL_CP}"
 "$KOTLINC_BIN" -J-Xms128m -J-Xmx1536m -Xjdk-release=8 -jvm-default=no-compatibility -Werror -classpath "$REAL_CP" -d "$OUT/forge-classes" @"$OUT/forge-kotlin-sources.txt"
+# Forge patches vanilla SoundEvent to IForgeRegistryEntry in its real MCP/RFG environment, but the
+# independent binary gate deliberately starts from Mojang's unpatched client.jar. Reuse only this
+# one already exact-toolchain class from the unified compile, then audit its bytecode/Forge ABI
+# explicitly. Never add a fake patched Minecraft class to REAL_CP.
+UNIFIED_SOUND_EVENTS="$ROOT/out/forge-classes/dev/acoustic/mc1122/forge/LegacySoundEvents.class"
+[[ -f "$UNIFIED_SOUND_EVENTS" ]] || { echo 'ERROR: verified unified LegacySoundEvents.class missing' >&2; exit 1; }
+mkdir -p "$OUT/forge-classes/dev/acoustic/mc1122/forge"
+cp "$UNIFIED_SOUND_EVENTS" "$OUT/forge-classes/dev/acoustic/mc1122/forge/LegacySoundEvents.class"
+SOUND_EVENTS_JAVAP="$OUT/LegacySoundEvents-real-forge-abi.javap"
+javap -classpath "$OUT/forge-classes:$REAL_CP" -v -p dev.acoustic.mc1122.forge.LegacySoundEvents > "$SOUND_EVENTS_JAVAP"
+python3 - "$SOUND_EVENTS_JAVAP" <<'PYSOUNDABI'
+from pathlib import Path
+import sys
+s=Path(sys.argv[1]).read_text(errors='replace')
+checks={
+    'static registry handler':'public static final void registerSounds(net.minecraftforge.event.RegistryEvent$Register<net.minecraft.util.SoundEvent>)',
+    'SoundEvent generic signature':'RegistryEvent$Register<Lnet/minecraft/util/SoundEvent;>',
+    'real Forge registry descriptor':'IForgeRegistry.register:(Lnet/minecraftforge/registries/IForgeRegistryEntry;)V',
+    'event-bus subscriber annotation':'net.minecraftforge.fml.common.Mod$EventBusSubscriber(',
+    'client-only subscriber':'value=[Lnet/minecraftforge/fml/relauncher/Side;.CLIENT]',
+    'mod id':'modid="acousticshaders"',
+    'subscribe annotation':'net.minecraftforge.fml.common.eventhandler.SubscribeEvent',
+}
+for label,needle in checks.items():
+    if needle not in s:
+        raise SystemExit('ERROR: LegacySoundEvents Forge-patch ABI mismatch: '+label)
+print('[PASS] Forge-patched SoundEvent registration class carries exact generic/event/registry ABI without a fake Minecraft patch stub')
+PYSOUNDABI
 if [[ -n "$REAL_EXTERNAL_CP" ]]; then
   for c in dev.acoustic.mc1122.forge.OpenClFdtdBackend dev.acoustic.mc1122.forge.OpenClGeometricBackend; do
     f="$OUT/${c##*.}-external.javap"

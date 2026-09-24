@@ -61,6 +61,7 @@ required={
     'dev/acoustic/mc1122/forge/GuiAcousticShaders.class',
     'dev/acoustic/mc1122/forge/LegacyProjectileEmitterManager.class',
     'dev/acoustic/mc1122/forge/LegacyDirectPathDiagnostic.class',
+    'dev/acoustic/mc1122/forge/LegacySoundEvents.class',
     'dev/acoustic/mc1122/mixin/MixinSourceLWJGLOpenAL.class',
     'assets/acousticshaders/sounds.json',
     'assets/acousticshaders/sounds/projectile/flight.ogg',

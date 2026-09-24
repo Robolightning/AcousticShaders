@@ -2,7 +2,7 @@
 
 ## Runtime dependencies
 
-Target: Minecraft 1.12.2 + Forge 14.23.5.2864 + MixinBooter 11.15 + Forgelin-Continuous 2.4.0.0. Do not install the original Shadowfacts Forgelin alongside Forgelin-Continuous. GPU compute is optional. OpenCL uses LWJGL2 plus the system OpenCL ICD. CUDA uses the NVIDIA Driver API via the JNA 4.4 already shipped on the Minecraft 1.12.2 launcher classpath and requires NVRTC only when CUDA kernels are actually compiled.
+Target: Minecraft 1.12.2 + Forge 14.23.5.2864 + MixinBooter 11.15 + Forgelin-Continuous 2.4.0.0 for the pinned release profile. The production dependency accepts `forgelin_continuous >= 2.4.0.0`; newer runtime JARs may be audited with `dev-real-forgelin-contract.sh`, but they do not change the exact Kotlin 2.4.0 release-compiler requirement. Do not install the original Shadowfacts Forgelin alongside Forgelin-Continuous. GPU compute is optional. OpenCL uses LWJGL2 plus the system OpenCL ICD. CUDA uses the NVIDIA Driver API via the JNA 4.4 already shipped on the Minecraft 1.12.2 launcher classpath and requires NVRTC only when CUDA kernels are actually compiled.
 
 ## World/thread boundary
 
