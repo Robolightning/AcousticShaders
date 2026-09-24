@@ -47,7 +47,10 @@ python3 - "$JAVAP" "$HEIGHT_PERCENT" "$LOCAL_HEIGHT" <<'PY'
 from pathlib import Path
 import re,sys
 text=Path(sys.argv[1]).read_text(errors='replace')
-height_name=sys.argv[2]; local_name=sys.argv[3]
+# Windows-native Python writes CRLF to a Git-Bash process substitution; bash `read`
+# removes the LF delimiter but can leave CR on the final mapped token. Method names
+# cannot contain surrounding whitespace, so normalize only that transport artifact.
+height_name=sys.argv[2].strip(); local_name=sys.argv[3].strip()
 
 def method_block(name, signature_fragment=None):
     # Capture until the next javap method header. Do not depend on bytecode offset spacing or
