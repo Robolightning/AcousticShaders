@@ -81,6 +81,7 @@ internal class LegacyClientRuntime {
     private var lastListener: Vec3? = null
     private var ticks = 0
     private var effectsDisabledCleanupApplied = false
+    @Volatile private var closed = false
     private var lastFullRefreshTick = 0
     private var epoch = 1L
     private var configStamp = 0L
@@ -140,6 +141,7 @@ internal class LegacyClientRuntime {
 
     @Synchronized
     fun refreshGeneratedMaterialDatabase() {
+        if (closed) return
         try {
             val snapshot = materialDatabase.initializeOrRefreshGenerated()
             materialRules = snapshot.rules
@@ -155,6 +157,7 @@ internal class LegacyClientRuntime {
     }
 
     fun tick() {
+        if (closed) return
         ticks++
         try {
             if (ticks % 40 == 0) {
@@ -359,7 +362,9 @@ internal class LegacyClientRuntime {
     }
 
     private fun scheduleRoom(request: RoomRequest) {
+        if (closed) return
         synchronized(this) {
+            if (closed) return
             pendingRoom = request
             if (roomWorkerRunning) return
             roomWorkerRunning = true
@@ -368,8 +373,12 @@ internal class LegacyClientRuntime {
     }
 
     private fun roomWorkerLoop() {
-        while (true) {
+        while (!closed) {
             val request: RoomRequest = synchronized(this) {
+                if (closed) {
+                    roomWorkerRunning = false
+                    return
+                }
                 val next = pendingRoom
                 pendingRoom = null
                 if (next == null) {
@@ -387,11 +396,11 @@ internal class LegacyClientRuntime {
                     request.performance.roomRays(),
                     request.parallel
                 )
-                if (epoch != request.frame.worldEpoch()) continue
+                if (closed || epoch != request.frame.worldEpoch()) continue
                 publishedValue = LegacyPublishedState(request.frame.scene(), request.frame.listener().position(), room, null, request.frame.worldEpoch(), request.effectsEnabled)
                 if (debug()) AcousticLog.debug("room async mean=${room.meanFreePathMeters()} openness=${room.openness()} rt60=${room.decayTimeSeconds()} density=${room.density()} hf=${room.gainHf()}")
                 val reflection = computeListenerInvariant(request)
-                if (epoch == request.frame.worldEpoch()) {
+                if (!closed && epoch == request.frame.worldEpoch()) {
                     publishedValue = LegacyPublishedState(request.frame.scene(), request.frame.listener().position(), room, reflection, request.frame.worldEpoch(), request.effectsEnabled)
                     scheduleActiveSources(request.frame, request.sourceSeeds, reflection, request.pack)
                     if (debug()) AcousticLog.debug("shared listener reflections ready samples=${reflection?.samples()?.size ?: 0}")
@@ -413,7 +422,7 @@ internal class LegacyClientRuntime {
     }
 
     fun sourceStarted(sourceId: Int, soundId: String?, position: Vec3?, gain: Double, importance: Double, streaming: Boolean, looping: Boolean): Long {
-        if (sourceId <= 0 || position == null) return 0L
+        if (closed || sourceId <= 0 || position == null) return 0L
         val profile = sourceProfiles.resolve(soundId)
         val generation: Long
         synchronized(sourceLock) {
@@ -436,7 +445,7 @@ internal class LegacyClientRuntime {
     fun sourceProfileFor(soundId: String?): AcousticSourceProfile = effectiveSourceProfile(sourceProfiles.resolve(soundId), packValue)
 
     fun sourceMoved(sourceId: Int, position: Vec3?) {
-        if (sourceId <= 0 || position == null) return
+        if (closed || sourceId <= 0 || position == null) return
         val published = publishedValue
         var state: SourceState? = null
         var shouldQueue = false
@@ -524,7 +533,7 @@ internal class LegacyClientRuntime {
     }
 
     fun sourcePcmCaptured(sourceId: Int, generation: Long, capture: LegacySoftwareWetRenderer.PcmCapture?) {
-        if (capture == null) return
+        if (closed || capture == null) return
         synchronized(sourceLock) {
             val state = activeSources[sourceId] ?: return
             if (state.generation == generation && !state.streaming && !state.looping) state.pcmCapture = capture
@@ -589,6 +598,7 @@ internal class LegacyClientRuntime {
         requestPack: LegacyShaderPackRuntime,
         capturedSeed: SourceRequestSeed? = null
     ) {
+        if (closed) return
         var start = false
         synchronized(sourceLock) {
             val active = activeSources[sourceId] ?: return
@@ -638,8 +648,12 @@ internal class LegacyClientRuntime {
     }
 
     private fun sourceWorkerLoop() {
-        while (true) {
+        while (!closed) {
             val request: SourceRequest = synchronized(sourceLock) {
+                if (closed) {
+                    sourceWorkerRunning = false
+                    return
+                }
                 if (pendingSources.isEmpty()) {
                     sourceWorkerRunning = false
                     return
@@ -665,6 +679,7 @@ internal class LegacyClientRuntime {
                 val effect = fullProjector.project(response, request.pack.liveTuning(), behavior)
                 val backend = response.wave()?.backendId() ?: "none"
                 val millis = (System.nanoTime() - start) / 1_000_000.0
+                if (closed) return
                 completedSources.add(
                     SourceResult(
                         request.sourceId,
@@ -710,6 +725,7 @@ internal class LegacyClientRuntime {
     }
 
     fun drainFullSourceResults(efx: LegacyEfxBackend, wetBackend: LegacySoftwareWetBackend) {
+        if (closed) return
         if (!audioConfig.softwareWetEnabled) {
             for (sourceId in wetBackend.clearAll()) restoreEfx(sourceId, efx)
         }
@@ -798,6 +814,33 @@ internal class LegacyClientRuntime {
         if (state.ready()) efx.apply(sourceId, effect, state.room(), scene.revision())
     }
 
+    @Synchronized
+    fun close() {
+        if (closed) return
+        closed = true
+        epoch++
+        pendingRoom = null
+        roomWorkerRunning = false
+        synchronized(sourceLock) {
+            activeSources.clear()
+            pendingSources.clear()
+            sourceWorkerRunning = false
+            sourceFrameRefreshRevision++
+        }
+        completedSources.clear()
+        deferredWetResults.clear()
+        LegacyDirectPathDiagnostic.clear()
+        projectileEmitters.clear()
+        publishedValue = LegacyPublishedState.EMPTY
+        lastListener = null
+        wetRenderer.close()
+        if (::pipelineExecutor.isInitialized) pipelineExecutor.close()
+        if (::analysisExecutor.isInitialized) analysisExecutor.shutdownNow()
+        if (::physicsWorkers.isInitialized) physicsWorkers.shutdownNow()
+        // Native OpenAL state is owner-thread state. Request a reset rather than touching it here.
+        LegacySoundHook.requestEffectsReset()
+    }
+
     fun computeDiagnostics(): String =
         "fullSolved=$fullSourceSolved stale=$fullSourceStale lagAccepted=$fullSourceLagAccepted lastMs=$lastFullSourceMs lastWave=$lastWaveBackend " +
             "platformFrame={validated=$validatedPlatformFrames epoch=$lastPlatformFrameEpoch sequence=$lastPlatformFrameSequence sources=$lastPlatformFrameSources} " +
@@ -809,7 +852,7 @@ internal class LegacyClientRuntime {
 
     fun published(): LegacyPublishedState = publishedValue
     fun debug(): Boolean = ::configValue.isInitialized && configValue.debug()
-    fun effectsActive(): Boolean = ::configValue.isInitialized && configValue.effectsEnabled() && ::packValue.isInitialized && !packValue.disabled()
+    fun effectsActive(): Boolean = !closed && ::configValue.isInitialized && configValue.effectsEnabled() && ::packValue.isInitialized && !packValue.disabled()
     fun captureBootstrapActive(): Boolean = ::capture.isInitialized && capture.bootstrapActive()
     fun debugError(where: String, t: Throwable) { if (debug()) AcousticLog.error("$where failed", t) }
     fun config(): LegacyRuntimeConfig = configValue
@@ -817,6 +860,7 @@ internal class LegacyClientRuntime {
 
     @Synchronized
     fun applyLegacyAudioConfig(next: LegacyAudioConfig) {
+        if (closed) return
         next.save(audioConfigFile)
         audioConfig = next
         audioConfigStamp = if (Files.isRegularFile(audioConfigFile)) Files.getLastModifiedTime(audioConfigFile).toMillis() else 0L
@@ -831,6 +875,7 @@ internal class LegacyClientRuntime {
     @Synchronized
     @Throws(IOException::class)
     fun applyUiConfiguration(stack: List<String>, profile: String, overrides: Map<String, String>) {
+        if (closed) return
         val next = configValue.withUi(stack, profile, overrides)
         val fingerprint = LegacyShaderPackFingerprint.compute(shaderpackDirValue, next.packs())
         val nextPack = LegacyShaderPackRuntime.load(shaderpackDirValue, next, materialRules, mediumRules)
@@ -903,6 +948,7 @@ internal class LegacyClientRuntime {
     @Synchronized
     @Throws(IOException::class)
     private fun activate(next: LegacyRuntimeConfig, nextPack: LegacyShaderPackRuntime, shaderFingerprint: String = LegacyShaderPackFingerprint.compute(shaderpackDirValue, next.packs())) {
+        if (closed) return
         val oldAnalysis = if (::analysisExecutor.isInitialized) analysisExecutor else null
         val oldPhysics = if (::physicsWorkers.isInitialized) physicsWorkers else null
         val oldPipeline = if (::pipelineExecutor.isInitialized) pipelineExecutor else null

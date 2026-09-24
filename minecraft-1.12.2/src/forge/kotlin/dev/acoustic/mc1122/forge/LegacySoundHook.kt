@@ -19,8 +19,10 @@ object LegacySoundHook {
     @Volatile private var audioContextGeneration = 0L
 
     @JvmStatic @JvmName("bind") internal fun bind(r: LegacyClientRuntime) {
+        val replacing = runtime != null && runtime !== r
         runtime = r
         audioContextGeneration = 0L
+        if (replacing) requestEffectsReset()
     }
 
     @JvmStatic fun onSourcePlay(source: Any) {

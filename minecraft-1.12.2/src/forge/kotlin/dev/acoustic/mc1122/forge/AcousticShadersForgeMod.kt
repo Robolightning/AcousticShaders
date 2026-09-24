@@ -34,6 +34,11 @@ class AcousticShadersForgeMod {
 
     @Mod.EventHandler
     fun preInit(event: FMLPreInitializationEvent) {
+        // Forge normally invokes preInit once, but launcher/test recreation must not leave
+        // a superseded runtime's worker pools or logical source generations alive.
+        runtime?.close()
+        runtime = null
+        ACTIVE_RUNTIME = null
         val root = event.modConfigurationDirectory.toPath().resolve("acousticshaders")
         val cudaDir = root.resolve("cuda")
         try {
