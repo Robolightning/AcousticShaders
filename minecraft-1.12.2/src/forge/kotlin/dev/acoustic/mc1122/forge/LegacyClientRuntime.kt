@@ -83,7 +83,8 @@ internal class LegacyClientRuntime {
     private var effectsDisabledCleanupApplied = false
     @Volatile private var closed = false
     private var lastFullRefreshTick = 0
-    private var epoch = 1L
+    @Volatile private var epoch = 1L
+    @Volatile private var analysisGeneration = 1L
     private var configStamp = 0L
     @Volatile private var shaderPackObservedFingerprint = ""
     @Volatile private var shaderPackActiveFingerprint = ""
@@ -94,6 +95,7 @@ internal class LegacyClientRuntime {
     private lateinit var pipelineExecutor: ParallelPipelineExecutor
     @Volatile private var pendingRoom: RoomRequest? = null
     private var roomWorkerRunning = false
+    private var roomWorkerGeneration = 0L
 
     private val sourceLock = Any()
     private val activeSources = LinkedHashMap<Int, SourceState>()
@@ -101,6 +103,7 @@ internal class LegacyClientRuntime {
     private val completedSources = ConcurrentLinkedQueue<SourceResult>()
     private var sourceGeneration = 0L
     private var sourceWorkerRunning = false
+    private var sourceWorkerGeneration = 0L
     @Volatile private var sourceFrameRefreshRevision = 0L
     @Volatile private var scheduledSourceFrameRefreshRevision = 0L
 
@@ -366,26 +369,28 @@ internal class LegacyClientRuntime {
         synchronized(this) {
             if (closed) return
             pendingRoom = request
-            if (roomWorkerRunning) return
+            val workerGeneration = analysisGeneration
+            if (roomWorkerRunning && roomWorkerGeneration == workerGeneration) return
             roomWorkerRunning = true
+            roomWorkerGeneration = workerGeneration
             // Submit while holding the same monitor used by close(). Otherwise close()
             // could shut the executor down after the running flag is published but
             // before this task is submitted, leaving a rejected task and stuck flag.
-            analysisExecutor.submit { roomWorkerLoop() }
+            analysisExecutor.submit { roomWorkerLoop(workerGeneration) }
         }
     }
 
-    private fun roomWorkerLoop() {
-        while (!closed) {
+    private fun roomWorkerLoop(workerGeneration: Long) {
+        while (true) {
             val request: RoomRequest = synchronized(this) {
-                if (closed) {
-                    roomWorkerRunning = false
+                if (closed || analysisGeneration != workerGeneration) {
+                    if (roomWorkerGeneration == workerGeneration) roomWorkerRunning = false
                     return
                 }
                 val next = pendingRoom
                 pendingRoom = null
                 if (next == null) {
-                    roomWorkerRunning = false
+                    if (roomWorkerGeneration == workerGeneration) roomWorkerRunning = false
                     return
                 }
                 next
@@ -400,7 +405,7 @@ internal class LegacyClientRuntime {
                     request.parallel
                 )
                 val roomPublished = synchronized(this) {
-                    if (closed || epoch != request.frame.worldEpoch()) false
+                    if (closed || analysisGeneration != workerGeneration || epoch != request.frame.worldEpoch()) false
                     else {
                         publishedValue = LegacyPublishedState(request.frame.scene(), request.frame.listener().position(), room, null, request.frame.worldEpoch(), request.effectsEnabled)
                         true
@@ -410,7 +415,7 @@ internal class LegacyClientRuntime {
                 if (debug()) AcousticLog.debug("room async mean=${room.meanFreePathMeters()} openness=${room.openness()} rt60=${room.decayTimeSeconds()} density=${room.density()} hf=${room.gainHf()}")
                 val reflection = computeListenerInvariant(request)
                 val reflectionPublished = synchronized(this) {
-                    if (closed || epoch != request.frame.worldEpoch()) false
+                    if (closed || analysisGeneration != workerGeneration || epoch != request.frame.worldEpoch()) false
                     else {
                         publishedValue = LegacyPublishedState(request.frame.scene(), request.frame.listener().position(), room, reflection, request.frame.worldEpoch(), request.effectsEnabled)
                         true
@@ -658,25 +663,27 @@ internal class LegacyClientRuntime {
                 requestEpoch,
                 requestPack
             )
-            if (!sourceWorkerRunning) {
+            val workerGeneration = analysisGeneration
+            if (!sourceWorkerRunning || sourceWorkerGeneration != workerGeneration) {
                 sourceWorkerRunning = true
+                sourceWorkerGeneration = workerGeneration
                 // Keep task submission inside sourceLock. close() sets closed first and
                 // then takes this same lock before shutting the executor down, so it is
                 // impossible to publish a running flag and then submit to a closed pool.
-                analysisExecutor.submit { sourceWorkerLoop() }
+                analysisExecutor.submit { sourceWorkerLoop(workerGeneration) }
             }
         }
     }
 
-    private fun sourceWorkerLoop() {
-        while (!closed) {
+    private fun sourceWorkerLoop(workerGeneration: Long) {
+        while (true) {
             val request: SourceRequest = synchronized(sourceLock) {
-                if (closed) {
-                    sourceWorkerRunning = false
+                if (closed || analysisGeneration != workerGeneration) {
+                    if (sourceWorkerGeneration == workerGeneration) sourceWorkerRunning = false
                     return
                 }
                 if (pendingSources.isEmpty()) {
-                    sourceWorkerRunning = false
+                    if (sourceWorkerGeneration == workerGeneration) sourceWorkerRunning = false
                     return
                 }
                 val first = pendingSources.keys.iterator().next()
@@ -721,7 +728,7 @@ internal class LegacyClientRuntime {
                 )
                 val accepted = synchronized(sourceLock) {
                     val active = activeSources[request.sourceId]
-                    if (closed || epoch != request.epoch || active == null || active.generation != request.generation) false
+                    if (closed || analysisGeneration != workerGeneration || epoch != request.epoch || active == null || active.generation != request.generation) false
                     else {
                         completedSources.add(result)
                         fullSourceSolved++
@@ -848,13 +855,16 @@ internal class LegacyClientRuntime {
     fun close() {
         if (closed) return
         closed = true
+        analysisGeneration++
         epoch++
         pendingRoom = null
         roomWorkerRunning = false
+        roomWorkerGeneration = 0L
         synchronized(sourceLock) {
             activeSources.clear()
             pendingSources.clear()
             sourceWorkerRunning = false
+            sourceWorkerGeneration = 0L
             sourceFrameRefreshRevision++
         }
         completedSources.clear()
@@ -983,19 +993,31 @@ internal class LegacyClientRuntime {
         val oldPhysics = if (::physicsWorkers.isInitialized) physicsWorkers else null
         val oldPipeline = if (::pipelineExecutor.isInitialized) pipelineExecutor else null
         val workerCount = nextPack.performanceTuning().workers()
-        physicsWorkers = newWorkers(workerCount, "acoustic-physics-worker-")
-        pipelineExecutor = ParallelPipelineExecutor(physicsWorkers, workerCount)
-        parallelWork = pipelineExecutor.parallelWork()
-        analysisExecutor = newWorkers(if (Runtime.getRuntime().availableProcessors() >= 8) 2 else 1, "acoustic-analysis-")
+        val newPhysics = newWorkers(workerCount, "acoustic-physics-worker-")
+        val newPipeline = ParallelPipelineExecutor(newPhysics, workerCount)
+        val newParallel = newPipeline.parallelWork()
+        val newAnalysis = newWorkers(if (Runtime.getRuntime().availableProcessors() >= 8) 2 else 1, "acoustic-analysis-")
+        synchronized(sourceLock) {
+            // Make the executor/configuration swap a hard asynchronous identity boundary.
+            // queueSource() uses sourceLock and scheduleRoom() uses this monitor (held by
+            // @Synchronized activate), so no request can be submitted half-way through
+            // the swap. Old workers carry the previous generation and must retire.
+            analysisGeneration++
+            epoch++
+            physicsWorkers = newPhysics
+            pipelineExecutor = newPipeline
+            parallelWork = newParallel
+            analysisExecutor = newAnalysis
+            pendingSources.clear()
+            sourceWorkerRunning = false
+            sourceWorkerGeneration = 0L
+        }
         oldPipeline?.close()
         oldAnalysis?.shutdownNow()
         oldPhysics?.shutdownNow()
         pendingRoom = null
         roomWorkerRunning = false
-        synchronized(sourceLock) {
-            pendingSources.clear()
-            sourceWorkerRunning = false
-        }
+        roomWorkerGeneration = 0L
         completedSources.clear()
         deferredWetResults.clear()
         wetRenderer.clear()
@@ -1005,7 +1027,6 @@ internal class LegacyClientRuntime {
         configStamp = if (Files.isRegularFile(configFile)) Files.getLastModifiedTime(configFile).toMillis() else 0L
         shaderPackObservedFingerprint = shaderFingerprint
         shaderPackActiveFingerprint = shaderFingerprint
-        epoch++
         publishedValue = LegacyPublishedState.EMPTY
         lastListener = null
         lastFullRefreshTick = ticks

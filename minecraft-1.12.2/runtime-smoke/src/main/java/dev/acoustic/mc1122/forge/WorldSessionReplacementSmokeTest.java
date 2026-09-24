@@ -57,6 +57,10 @@ public final class WorldSessionReplacementSmokeTest {
         mc.field_71439_g = new Entity(0.0, 2.0, 0.0);
         mc.field_71441_e = worldA;
         clientTick(mod); // initial attach: no old session exists to retire.
+        // The initial attach schedules a real room worker. Do not race that worker with the
+        // hand-seeded published state used below; otherwise scheduler timing can overwrite
+        // the test fixture before sourceStarted() observes it.
+        waitForRoomWorkerIdle(runtime, 10000L);
 
         final int source = 811;
         final BlockingScene oldScene = new BlockingScene(91L);
@@ -159,6 +163,17 @@ public final class WorldSessionReplacementSmokeTest {
             Thread.sleep(1L);
         }
         throw new AssertionError("old-world source worker did not become idle after release");
+    }
+
+    private static void waitForRoomWorkerIdle(LegacyClientRuntime runtime, long timeoutMillis) throws Exception {
+        Field field = LegacyClientRuntime.class.getDeclaredField("roomWorkerRunning");
+        field.setAccessible(true);
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            if (!field.getBoolean(runtime)) return;
+            Thread.sleep(1L);
+        }
+        throw new AssertionError("initial room worker did not become idle before source fixture seed");
     }
 
     private static final class BlockingScene implements AcousticScene {
