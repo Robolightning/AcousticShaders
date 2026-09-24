@@ -126,7 +126,29 @@ ps,n_update=re.subn(r'(?m)^(\s*)override fun update\(\)',r'\1fun update()',ps,co
 ps,n_srg=re.subn(r'(?m)^(\s*)fun func_73660_a\(\)',r'\1override fun func_73660_a()',ps,count=1)
 if n_update!=1 or n_srg!=1:
     raise SystemExit(f'ERROR: projectile tick SRG normalization mismatch update={n_update} srg={n_srg}')
+# MovingSound/PositionedSound protected fields are MCP names in the production source and are
+# reobfuscated by the real Forge/RFG build. This independent SRG-only compile starts from an
+# already-remapped Mojang client, so normalize only the inherited field accesses in this temporary
+# source view. Counts are intentionally strict so a future source/mapping drift fails closed.
+field_rewrites=[
+    (r'\brepeat\b(?=\s*=)', 'field_147659_g', 1),
+    (r'\brepeatDelay\b(?=\s*=)', 'field_147665_h', 1),
+    (r'\battenuationType\b(?=\s*=)', 'field_147666_i', 1),
+    (r'\bdonePlaying\b(?=\s*=)', 'field_147668_j', 2),
+    (r'\bxPosF\b(?=\s*=)', 'field_147660_d', 1),
+    (r'\byPosF\b(?=\s*=)', 'field_147661_e', 1),
+    (r'\bzPosF\b(?=\s*=)', 'field_147658_f', 1),
+    (r'\bvolume\b(?=\s*=)', 'field_147662_b', 1),
+    (r'\bpitch\b(?=\s*=)', 'field_147663_c', 1),
+]
+field_counts={}
+for pattern,replacement,expected in field_rewrites:
+    ps,count=re.subn(pattern,replacement,ps)
+    field_counts[replacement]=count
+    if count!=expected:
+        raise SystemExit(f'ERROR: projectile SRG field normalization mismatch {replacement}={count}, expected {expected}')
 projectile.write_text(ps)
+print('[PASS] projectile SRG source view normalized tick override + 11 inherited field accesses')
 PY
 find "${OUT#"$ROOT/"}/forge-source" -name '*.kt' ! -name 'LegacySoundEvents.kt' | sort > "$OUT/forge-kotlin-sources.txt"
 KOTLIN_HOME_DIR="$(cd "$(dirname "$KOTLINC_BIN")/.." && pwd)"
