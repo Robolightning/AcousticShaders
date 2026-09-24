@@ -770,7 +770,8 @@ internal class LegacyClientRuntime {
         audioConfig = next
         audioConfigStamp = if (Files.isRegularFile(audioConfigFile)) Files.getLastModifiedTime(audioConfigFile).toMillis() else 0L
         wetRenderer.reconfigure(next)
-        if (!next.softwareWetEnabled) { wetRenderer.clear(); deferredWetResults.clear() }
+        deferredWetResults.clear()
+        LegacySoundHook.wakeAudioThread()
         AcousticLog.info("software wet convolution ${if (next.softwareWetEnabled) "enabled" else "disabled"}; threads=${next.rendererThreads} voices=${next.maxWetVoices}")
     }
     fun pack(): LegacyShaderPackRuntime = packValue
@@ -801,6 +802,8 @@ internal class LegacyClientRuntime {
             if (stamp == audioConfigStamp) return
             val next = LegacyAudioConfig.loadOrCreate(audioConfigFile)
             audioConfig = next; audioConfigStamp = stamp; wetRenderer.reconfigure(next)
+            deferredWetResults.clear()
+            LegacySoundHook.wakeAudioThread()
             AcousticLog.info("software wet convolution ${if (next.softwareWetEnabled) "enabled" else "disabled"}; threads=${next.rendererThreads} voices=${next.maxWetVoices}")
         } catch (t: Throwable) { debugError("legacy audio config reload", t) }
     }

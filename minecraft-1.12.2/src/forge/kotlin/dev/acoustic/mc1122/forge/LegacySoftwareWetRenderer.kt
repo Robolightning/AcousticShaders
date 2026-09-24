@@ -36,17 +36,17 @@ internal class LegacySoftwareWetRenderer(private var config: LegacyAudioConfig) 
     @Volatile var failures: Long = 0; private set
 
     fun reconfigure(next: LegacyAudioConfig) {
-        if (next.rendererThreads == config.rendererThreads) {
-            config = next
-            if (!next.softwareWetEnabled) clear()
-            return
-        }
+        if (next == config) return
         val old = workers
+        val replacePool = next.rendererThreads != config.rendererThreads
         config = next
-        workers = newPool(next.rendererThreads)
+        if (replacePool) workers = newPool(next.rendererThreads)
+        // Any audio-config change invalidates renders started under the previous settings.
+        // Merely clearing the queues is insufficient: an already-running worker could finish
+        // after the clear and publish a stale wet result that later becomes eligible again.
         synchronized(lock) { poolGeneration++; pending.clear(); running = 0 }
-        old.shutdownNow()
-        if (!next.softwareWetEnabled) clear()
+        completed.clear()
+        if (replacePool) old.shutdownNow()
     }
 
     fun submit(request: Request) {

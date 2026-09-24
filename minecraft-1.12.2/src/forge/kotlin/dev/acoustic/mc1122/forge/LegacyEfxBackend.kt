@@ -18,6 +18,7 @@ internal class LegacyEfxBackend {
     private var slot = 0
     private var roomEpoch = Long.MIN_VALUE
     private var available = false
+    private var efxInitialized = false
     private var warned = false
     private var lastRoomSignature: RoomSignature? = null
     private var al10: Class<*>? = null
@@ -29,7 +30,7 @@ internal class LegacyEfxBackend {
     fun apply(sourceId: Int, p: LegacyEffectParameters, room: LegacyRoomEstimate, epoch: Long) {
         if (sourceId <= 0) return
         try {
-            if (!ensureContext()) return
+            if (!ensureEfxContext()) return
             if (roomEpoch != epoch) {
                 val signature = RoomSignature.of(room)
                 val previous = lastRoomSignature
@@ -69,7 +70,7 @@ internal class LegacyEfxBackend {
     fun applyDirectOnly(sourceId: Int, p: LegacyEffectParameters) {
         if (sourceId <= 0) return
         try {
-            if (!ensureContext()) return
+            if (!ensureEfxContext()) return
             removeFilters(sourceId, true)
             val direct = gen("alGenFilters")
             val efx = requireNotNull(efx10)
@@ -87,10 +88,9 @@ internal class LegacyEfxBackend {
     fun clearSource(sourceId: Int) {
         if (sourceId <= 0) return
         try {
-            if (ensureContext()) {
-                removeFilters(sourceId, true)
-                resetVelocity(sourceId)
-            }
+            if (!ensureAlContext()) return
+            if (filters.containsKey(sourceId)) removeFilters(sourceId, true)
+            resetVelocity(sourceId)
         } catch (t: Throwable) {
             disable(t)
         }
@@ -101,12 +101,12 @@ internal class LegacyEfxBackend {
     @Synchronized
     fun clearAll() {
         try {
-            if (!ensureContext()) { filters.clear(); velocitySources.clear(); return }
+            if (!ensureAlContext()) { filters.clear(); velocitySources.clear(); return }
             val ids = LinkedHashSet<Int>()
             ids.addAll(filters.keys)
             ids.addAll(velocitySources)
             for (sourceId in ids) {
-                removeFilters(sourceId, true)
+                if (filters.containsKey(sourceId)) removeFilters(sourceId, true)
                 resetVelocity(sourceId)
             }
         } catch (t: Throwable) {
@@ -122,12 +122,13 @@ internal class LegacyEfxBackend {
         } catch (_: Throwable) {}
     }
 
-    /** Optional projectile/fly-by Doppler. Called only on the OpenAL-owning command thread. */
+    /** Optional projectile/fly-by Doppler. Called only on the OpenAL-owning command thread.
+     *  AL_VELOCITY is core OpenAL state and must not depend on ALC_EXT_EFX availability. */
     @Synchronized
     fun applyVelocity(sourceId: Int, velocity: Vec3?, dopplerScale: Float) {
         if (sourceId <= 0 || velocity == null) return
         try {
-            if (!ensureContext()) return
+            if (!ensureAlContext()) return
             val scale = max(0f, min(4f, dopplerScale))
             val al = requireNotNull(al10)
             call(
@@ -146,12 +147,10 @@ internal class LegacyEfxBackend {
     }
 
     @Throws(Exception::class)
-    private fun ensureContext(): Boolean {
+    private fun ensureAlContext(): Boolean {
         if (alc10 == null) {
             al10 = Class.forName("org.lwjgl.openal.AL10")
-            al11 = Class.forName("org.lwjgl.openal.AL11")
             alc10 = Class.forName("org.lwjgl.openal.ALC10")
-            efx10 = Class.forName("org.lwjgl.openal.EFX10")
         }
         val now = call(requireNotNull(alc10), "alcGetCurrentContext") ?: return false
         if (now != context) {
@@ -163,6 +162,20 @@ internal class LegacyEfxBackend {
             roomEpoch = Long.MIN_VALUE
             lastRoomSignature = null
             available = false
+            efxInitialized = false
+        }
+        return true
+    }
+
+    @Throws(Exception::class)
+    private fun ensureEfxContext(): Boolean {
+        if (!ensureAlContext()) return false
+        if (efx10 == null) {
+            al11 = Class.forName("org.lwjgl.openal.AL11")
+            efx10 = Class.forName("org.lwjgl.openal.EFX10")
+        }
+        if (!efxInitialized) {
+            efxInitialized = true
             initialize()
         }
         return available

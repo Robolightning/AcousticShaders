@@ -90,6 +90,8 @@ javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$OUT/forge-c
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.ProjectileEmitterSmokeTest
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.EffectsDisableProjectileSmokeTest
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.EffectsDisableAudioStateSmokeTest
+"$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.SoftwareWetToggleSmokeTest
+"$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.DopplerWithoutEfxSmokeTest
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.DirectPathDiagnosticSmokeTest
 find "$ROOT/minecraft-1.12.2/srg-gui-smoke/src/main/java" -name '*.java' | sort > "$OUT/srg-gui-smoke-sources.txt"
 javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$OUT/forge-classes:$KOTLIN_CP" -d "$OUT/srg-gui-smoke" @"$OUT/srg-gui-smoke-sources.txt"
