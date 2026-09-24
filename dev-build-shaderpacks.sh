@@ -2,6 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 OUT="$ROOT/out/shaderpacks"
+TRACKED="$ROOT/minecraft-1.12.2/src/forge/resources/assets/acousticshaders/shaderpacks/AcousticShaders-Reference-Hybrid.zip"
 rm -rf "$OUT"
 mkdir -p "$OUT"
 python3 - "$ROOT" "$OUT" <<'PY'
@@ -20,6 +21,33 @@ print('[PASS] shaderpack',dst.name,dst.stat().st_size,'bytes', flush=True)
 import os
 os._exit(0)
 PY
-mkdir -p "$ROOT/minecraft-1.12.2/src/forge/resources/assets/acousticshaders/shaderpacks"
-rm -f "$ROOT/minecraft-1.12.2/src/forge/resources/assets/acousticshaders/shaderpacks/"*.zip
-cp "$OUT/AcousticShaders-Reference-Hybrid.zip" "$ROOT/minecraft-1.12.2/src/forge/resources/assets/acousticshaders/shaderpacks/AcousticShaders-Reference-Hybrid.zip"
+mkdir -p "$(dirname "$TRACKED")"
+if [[ "${ACOUSTIC_UPDATE_TRACKED_SHADERPACK:-0}" == 1 ]]; then
+  cp "$OUT/AcousticShaders-Reference-Hybrid.zip" "$TRACKED"
+  echo '[PASS] explicitly refreshed tracked Reference-Hybrid shaderpack bytes'
+else
+  [[ -f "$TRACKED" ]] || {
+    echo 'ERROR: tracked Reference-Hybrid shaderpack missing; rerun with ACOUSTIC_UPDATE_TRACKED_SHADERPACK=1 to create it' >&2
+    exit 1
+  }
+  python3 - "$OUT/AcousticShaders-Reference-Hybrid.zip" "$TRACKED" <<'PYVERIFY'
+from pathlib import Path
+import sys,zipfile
+generated,tracked=map(Path,sys.argv[1:])
+
+def contents(path):
+    with zipfile.ZipFile(path,'r') as z:
+        names=sorted(n for n in z.namelist() if not n.endswith('/'))
+        return {name:z.read(name) for name in names}
+
+g=contents(generated); t=contents(tracked)
+if g.keys()!=t.keys():
+    missing=sorted(g.keys()-t.keys())
+    extra=sorted(t.keys()-g.keys())
+    raise SystemExit('ERROR: tracked Reference-Hybrid shaderpack member set is stale; missing=%s extra=%s; rerun with ACOUSTIC_UPDATE_TRACKED_SHADERPACK=1 and commit the result' % (missing,extra))
+for name in g:
+    if g[name]!=t[name]:
+        raise SystemExit('ERROR: tracked Reference-Hybrid shaderpack content is stale at %s; rerun with ACOUSTIC_UPDATE_TRACKED_SHADERPACK=1 and commit the result' % name)
+print('[PASS] tracked Reference-Hybrid shaderpack semantically matches generated pack without rewriting tracked bytes')
+PYVERIFY
+fi
