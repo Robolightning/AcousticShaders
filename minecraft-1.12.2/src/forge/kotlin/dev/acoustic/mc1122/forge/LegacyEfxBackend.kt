@@ -4,6 +4,8 @@ import dev.acoustic.api.math.Vec3
 import dev.acoustic.core.passes.LegacyEffectParameters
 import dev.acoustic.core.passes.LegacyRoomEstimate
 import java.lang.reflect.Method
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.LinkedHashMap
 import kotlin.math.max
 import kotlin.math.min
@@ -12,7 +14,24 @@ import kotlin.math.pow
 /** OpenAL EFX backend invoked only from Paulscode's audio/command thread. Uses reflection to avoid compile-time LWJGL coupling. */
 internal class LegacyEfxBackend {
     private val filters = LinkedHashMap<Int, Filters>(64, 0.75f, true)
-    private val velocitySources = LinkedHashSet<Int>()
+    /*
+     * OpenAL source ids are recycled by Paulscode. Tracking only the integer id is not
+     * enough to decide whether a later cleanup still owns AL_VELOCITY: another mod may
+     * have written a new velocity after AcousticShaders' last update. Keep the exact
+     * vector we wrote and clear it only while the live AL value still matches it.
+     */
+    private val velocitySources = LinkedHashMap<Int, OwnedVelocity>()
+    /*
+     * A source can be recycled after another mod has already replaced its EFX state.
+     * In that case detaching/deleting our old filters could corrupt the new owner. Keep
+     * those native filter ids as context-owned orphans instead. Their count is strictly
+     * bounded; once the budget is exhausted we fail closed for EFX until the OpenAL
+     * context changes (context destruction releases the native objects). Core Doppler is
+     * independent and remains available through ensureAlContext().
+     */
+    private val orphanFilters = LinkedHashSet<Int>()
+    private var efxResourceSuspended = false
+    private var orphanPressureWarned = false
     private var context: Any? = null
     private var effect = 0
     private var slot = 0
@@ -40,7 +59,7 @@ internal class LegacyEfxBackend {
                 }
                 roomEpoch = epoch
             }
-            removeFilters(sourceId, false)
+            if (!prepareForEfxWrite(sourceId)) return
             val direct = gen("alGenFilters")
             val send = gen("alGenFilters")
             val efx = requireNotNull(efx10)
@@ -71,7 +90,7 @@ internal class LegacyEfxBackend {
         if (sourceId <= 0) return
         try {
             if (!ensureEfxContext()) return
-            removeFilters(sourceId, true)
+            if (!prepareForEfxWrite(sourceId)) return
             val direct = gen("alGenFilters")
             val efx = requireNotNull(efx10)
             call(efx, "alFilteri", direct, constant(efx, "AL_FILTER_TYPE"), constant(efx, "AL_FILTER_LOWPASS"))
@@ -89,7 +108,7 @@ internal class LegacyEfxBackend {
         if (sourceId <= 0) return
         try {
             if (!ensureAlContext()) return
-            if (filters.containsKey(sourceId)) removeFilters(sourceId, true)
+            if (filters.containsKey(sourceId)) removeFilters(sourceId)
             resetVelocity(sourceId)
         } catch (t: Throwable) {
             disable(t)
@@ -104,9 +123,9 @@ internal class LegacyEfxBackend {
             if (!ensureAlContext()) { filters.clear(); velocitySources.clear(); return }
             val ids = LinkedHashSet<Int>()
             ids.addAll(filters.keys)
-            ids.addAll(velocitySources)
+            ids.addAll(velocitySources.keys)
             for (sourceId in ids) {
-                if (filters.containsKey(sourceId)) removeFilters(sourceId, true)
+                if (filters.containsKey(sourceId)) removeFilters(sourceId)
                 resetVelocity(sourceId)
             }
         } catch (t: Throwable) {
@@ -115,9 +134,11 @@ internal class LegacyEfxBackend {
     }
 
     private fun resetVelocity(sourceId: Int) {
-        if (!velocitySources.remove(sourceId)) return
+        val owned = velocitySources.remove(sourceId) ?: return
         try {
             val al = requireNotNull(al10)
+            val current = currentVelocity(sourceId, al) ?: return
+            if (!owned.matches(current[0], current[1], current[2])) return
             call(al, "alSource3f", sourceId, constant(al, "AL_VELOCITY"), 0f, 0f, 0f)
         } catch (_: Throwable) {}
     }
@@ -130,19 +151,62 @@ internal class LegacyEfxBackend {
         try {
             if (!ensureAlContext()) return
             val scale = max(0f, min(4f, dopplerScale))
+            val x = (velocity.x * scale).toFloat()
+            val y = (velocity.y * scale).toFloat()
+            val z = (velocity.z * scale).toFloat()
+            if (scale <= 0f || (kotlin.math.abs(x) < 1.0e-6f && kotlin.math.abs(y) < 1.0e-6f && kotlin.math.abs(z) < 1.0e-6f)) {
+                // A zero-Doppler profile must not overwrite velocity owned by Minecraft or
+                // another mod. It only releases state that AcousticShaders can still prove
+                // it owns from a previous update of this same OpenAL source id.
+                resetVelocity(sourceId)
+                return
+            }
             val al = requireNotNull(al10)
+            val current = currentVelocity(sourceId, al) ?: return
+            val owned = velocitySources[sourceId]
+            if (owned == null) {
+                // AL_VELOCITY is a shared core OpenAL property.  Do not claim a source
+                // that already carries a non-zero vector supplied by Minecraft or another
+                // mod; there is no namespaced slot that lets us compose both owners.
+                if (!isZeroVelocity(current[0], current[1], current[2])) return
+            } else if (!owned.matches(current[0], current[1], current[2])) {
+                // Another owner replaced the vector after our previous write.  Relinquish
+                // bookkeeping and fail closed instead of immediately overwriting it again.
+                velocitySources.remove(sourceId)
+                return
+            }
             call(
                 al,
                 "alSource3f",
                 sourceId,
                 constant(al, "AL_VELOCITY"),
-                (velocity.x * scale).toFloat(),
-                (velocity.y * scale).toFloat(),
-                (velocity.z * scale).toFloat()
+                x,
+                y,
+                z
             )
-            if (scale > 0f) velocitySources.add(sourceId) else velocitySources.remove(sourceId)
+            velocitySources[sourceId] = OwnedVelocity(x, y, z)
         } catch (t: Throwable) {
             disable(t)
+        }
+    }
+
+    private fun isZeroVelocity(x: Float, y: Float, z: Float): Boolean =
+        kotlin.math.abs(x) < 1.0e-6f &&
+            kotlin.math.abs(y) < 1.0e-6f &&
+            kotlin.math.abs(z) < 1.0e-6f
+
+    private fun currentVelocity(sourceId: Int, al: Class<*>): FloatArray? {
+        return try {
+            // LWJGL 2.9.4 exposes AL10.alGetSource(int,int,FloatBuffer) for vector
+            // properties. Use a direct native-order buffer because the generated binding
+            // rejects heap buffers on the physical 1.12.2 runtime.
+            val values = ByteBuffer.allocateDirect(3 * java.lang.Float.BYTES)
+                .order(ByteOrder.nativeOrder())
+                .asFloatBuffer()
+            call(al, "alGetSource", sourceId, constant(al, "AL_VELOCITY"), values)
+            floatArrayOf(values.get(0), values.get(1), values.get(2))
+        } catch (_: Throwable) {
+            null
         }
     }
 
@@ -157,6 +221,9 @@ internal class LegacyEfxBackend {
             context = now
             filters.clear()
             velocitySources.clear()
+            orphanFilters.clear()
+            efxResourceSuspended = false
+            orphanPressureWarned = false
             effect = 0
             slot = 0
             roomEpoch = Long.MIN_VALUE
@@ -170,6 +237,7 @@ internal class LegacyEfxBackend {
     @Throws(Exception::class)
     private fun ensureEfxContext(): Boolean {
         if (!ensureAlContext()) return false
+        if (efxResourceSuspended) return false
         if (efx10 == null) {
             al11 = Class.forName("org.lwjgl.openal.AL11")
             efx10 = Class.forName("org.lwjgl.openal.EFX10")
@@ -236,27 +304,74 @@ internal class LegacyEfxBackend {
     @Throws(Exception::class)
     private fun gen(method: String): Int = (call(requireNotNull(efx10), method) as Number).toInt()
 
+    /**
+     * Prepare a source for an AcousticShaders EFX write without overwriting a different
+     * EFX owner.  If this source already has our tracked pair, it is detached first and
+     * only then deleted; deleting an attached filter and dropping bookkeeping can leak a
+     * native object on implementations that reject deletion while referenced.
+     */
     @Throws(Exception::class)
-    private fun removeFilters(sourceId: Int, detach: Boolean) {
-        val entry = filters.remove(sourceId) ?: return
+    private fun prepareForEfxWrite(sourceId: Int): Boolean {
+        if (efxResourceSuspended) return false
+        if (filters.containsKey(sourceId)) return removeFilters(sourceId)
         val efx = requireNotNull(efx10)
-        if (detach) {
-            try {
-                call(requireNotNull(al10), "alSourcei", sourceId, constant(efx, "AL_DIRECT_FILTER"), constant(efx, "AL_FILTER_NULL"))
-            } catch (_: Throwable) {}
-            try {
-                call(requireNotNull(al11), "alSource3i", sourceId, constant(efx, "AL_AUXILIARY_SEND_FILTER"), 0, 0, constant(efx, "AL_FILTER_NULL"))
-            } catch (_: Throwable) {}
+        val liveDirect = currentDirectFilter(sourceId, efx) ?: return false
+        return liveDirect == constant(efx, "AL_FILTER_NULL")
+    }
+
+    /**
+     * Detach and delete a tracked pair only while the live direct-filter still proves
+     * ownership.  If ownership was lost, retire the old ids into the bounded context
+     * orphan set and leave the new owner's source state untouched.
+     */
+    @Throws(Exception::class)
+    private fun removeFilters(sourceId: Int): Boolean {
+        val entry = filters.remove(sourceId) ?: return true
+        val efx = requireNotNull(efx10)
+        val liveDirect = currentDirectFilter(sourceId, efx)
+        if (liveDirect == null || liveDirect != entry.direct) {
+            retireOrphan(entry)
+            return false
         }
+        try {
+            call(requireNotNull(al10), "alSourcei", sourceId, constant(efx, "AL_DIRECT_FILTER"), constant(efx, "AL_FILTER_NULL"))
+        } catch (_: Throwable) {}
+        try {
+            call(requireNotNull(al11), "alSource3i", sourceId, constant(efx, "AL_AUXILIARY_SEND_FILTER"), 0, 0, constant(efx, "AL_FILTER_NULL"))
+        } catch (_: Throwable) {}
         safeDeleteFilter(entry.direct)
         if (entry.send > 0) safeDeleteFilter(entry.send)
+        return true
+    }
+
+    private fun retireOrphan(entry: Filters) {
+        if (entry.direct > 0) orphanFilters.add(entry.direct)
+        if (entry.send > 0) orphanFilters.add(entry.send)
+        if (orphanFilters.size >= MAX_ORPHAN_FILTERS && !efxResourceSuspended) {
+            efxResourceSuspended = true
+            if (!orphanPressureWarned) {
+                orphanPressureWarned = true
+                AcousticLog.warn(
+                    "OpenAL EFX ownership-conflict budget exhausted (${orphanFilters.size} orphan filters); " +
+                        "suspending EFX allocation until the OpenAL context changes"
+                )
+            }
+        }
+    }
+
+    private fun currentDirectFilter(sourceId: Int, efx: Class<*>): Int? {
+        return try {
+            (call(requireNotNull(al10), "alGetSourcei", sourceId, constant(efx, "AL_DIRECT_FILTER")) as? Number)?.toInt()
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     @Throws(Exception::class)
     private fun trim() {
         while (filters.size > 96) {
             val first = filters.keys.iterator().next()
-            removeFilters(first, false)
+            removeFilters(first)
         }
     }
 
@@ -303,7 +418,15 @@ internal class LegacyEfxBackend {
 
     private data class Filters(val direct: Int, val send: Int)
 
+    private data class OwnedVelocity(val x: Float, val y: Float, val z: Float) {
+        fun matches(otherX: Float, otherY: Float, otherZ: Float): Boolean =
+            kotlin.math.abs(x - otherX) <= 1.0e-5f &&
+                kotlin.math.abs(y - otherY) <= 1.0e-5f &&
+                kotlin.math.abs(z - otherZ) <= 1.0e-5f
+    }
+
     private companion object {
+        const val MAX_ORPHAN_FILTERS = 128
         @Throws(Exception::class)
         fun constant(clazz: Class<*>, name: String): Int = clazz.getField(name).getInt(null)
 

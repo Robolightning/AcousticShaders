@@ -24,7 +24,18 @@ object LegacySoundHook {
         try {
             val id = sourceId(source)
             if (id <= 0) return
-            if (!r.effectsActive()) { wet.clearSource(id); efx.clearSource(id); return }
+            /*
+             * Paulscode/OpenAL recycles numeric source ids. A missed/reordered stop or
+             * cleanup callback must therefore not allow an old wet voice, EFX filters,
+             * async generation, diagnostic snapshot or Doppler velocity to bleed into the
+             * next logical sound that receives the same AL id. This runs on the OpenAL
+             * owner thread at SourceLWJGLOpenAL.play() TAIL, before the new generation is
+             * published to the acoustic runtime.
+             */
+            r.sourceStopped(id)
+            wet.clearSource(id)
+            efx.clearSource(id)
+            if (!r.effectsActive()) return
             val pos = position(source)
             val soundId = soundIdentifier(source)
             val gain = max(0.0, numberFieldOr(source, "gain", 1.0) * numberFieldOr(source, "sourceVolume", 1.0))
