@@ -16,14 +16,19 @@ object LegacySoundHook {
     @Volatile private var runtime: LegacyClientRuntime? = null
     @Volatile private var audioThread: Thread? = null
     @Volatile private var effectsResetRequested = false
+    @Volatile private var audioContextGeneration = 0L
 
-    @JvmStatic @JvmName("bind") internal fun bind(r: LegacyClientRuntime) { runtime = r }
+    @JvmStatic @JvmName("bind") internal fun bind(r: LegacyClientRuntime) {
+        runtime = r
+        audioContextGeneration = 0L
+    }
 
     @JvmStatic fun onSourcePlay(source: Any) {
         val r = runtime ?: return
         try {
             val id = sourceId(source)
             if (id <= 0) return
+            syncAudioContext(r)
             /*
              * Paulscode/OpenAL recycles numeric source ids. A missed/reordered stop or
              * cleanup callback must therefore not allow an old wet voice, EFX filters,
@@ -69,12 +74,21 @@ object LegacySoundHook {
 
     @JvmStatic fun onSourceCleanup(source: Any) {
         val r = runtime
-        try { val id = sourceId(source); if (id > 0) { r?.sourceStopped(id); wet.clearSource(id); efx.clearSource(id) } } catch (_: Throwable) {}
+        try {
+            val id = sourceId(source)
+            if (id > 0) {
+                if (r != null) syncAudioContext(r)
+                r?.sourceStopped(id)
+                wet.clearSource(id)
+                efx.clearSource(id)
+            }
+        } catch (_: Throwable) {}
     }
 
     @JvmStatic fun onAudioCommandTick() {
         audioThread = Thread.currentThread()
         val r = runtime ?: return
+        syncAudioContext(r)
         wet.reconfigure(r.legacyAudioConfig())
         if (effectsResetRequested || !r.effectsActive()) {
             effectsResetRequested = false
@@ -93,6 +107,28 @@ object LegacySoundHook {
     @JvmStatic @JvmName("wakeAudioThread") internal fun wakeAudioThread() {
         val thread = audioThread
         if (thread != null && thread !== Thread.currentThread()) thread.interrupt()
+    }
+
+    /**
+     * Numeric AL source ids belong to one ALC context only. Detect context replacement
+     * before processing play/cleanup/results so stale logical source generations from the
+     * destroyed context can never target same-numbered sources in the replacement.
+     */
+    private fun syncAudioContext(r: LegacyClientRuntime) {
+        val current = wet.currentContextGeneration()
+        if (current <= 0L) return
+        val previous = audioContextGeneration
+        if (previous == 0L) {
+            audioContextGeneration = current
+            return
+        }
+        if (current == previous) return
+        audioContextGeneration = current
+        r.audioContextChanged()
+        // Both calls execute on the OpenAL owner thread. Their context guards discard
+        // old-context bookkeeping rather than mutating unrelated state in the new context.
+        wet.clearAll()
+        efx.clearAll()
     }
 
     private fun captureStaticMonoPcm(source: Any, maxBytes: Int): LegacySoftwareWetRenderer.PcmCapture? {

@@ -128,6 +128,34 @@ public final class SourceIdReuseSmokeTest {
         check(org.lwjgl.openal.EFX10.FILTERS.size() == filtersBeforePreownedApply,
             "pre-owned EFX source allocated AcousticShaders filters despite fail-closed ownership");
 
+        // Normal owned recycling must not consume the orphan/conflict budget at all.
+        // Model a long session that repeatedly reuses a tiny pool of four numeric AL ids.
+        // Every play-tail cleanup still owns its direct filter, so both native filters must
+        // be detached/deleted and EFX allocation must remain available indefinitely.
+        org.lwjgl.openal.EFX10.FILTERS.clear();
+        org.lwjgl.openal.AL10.DIRECT_FILTERS.clear();
+        org.lwjgl.openal.AL11.AUX_SENDS.clear();
+        org.lwjgl.openal.ALC10.CURRENT = new org.lwjgl.openal.ALCcontext();
+        for (int i = 0; i < 512; i++) {
+            int source = 600 + (i & 3);
+            efx.apply(source, effect, room, 4L + i);
+            check(value(org.lwjgl.openal.AL10.DIRECT_FILTERS, source) != 0,
+                "normal owned source reuse unexpectedly lost EFX allocation at iteration " + i);
+            LegacySoundHook.onSourcePlay(new FakeSource(source, "minecraft/sounds/random/owned_reuse_" + i + ".ogg"));
+            check(value(org.lwjgl.openal.AL10.DIRECT_FILTERS, source) == 0,
+                "normal owned source reuse left a direct filter attached at iteration " + i);
+            check(auxFilter(source) == 0,
+                "normal owned source reuse left an auxiliary filter attached at iteration " + i);
+            check(org.lwjgl.openal.EFX10.FILTERS.isEmpty(),
+                "normal owned source reuse leaked native filters at iteration " + i + ": " + org.lwjgl.openal.EFX10.FILTERS.size());
+        }
+        final int ownedReuseProbe = 699;
+        efx.apply(ownedReuseProbe, effect, room, 9L);
+        check(value(org.lwjgl.openal.AL10.DIRECT_FILTERS, ownedReuseProbe) != 0,
+            "normal owned reuse consumed ownership-conflict budget and suspended EFX");
+        LegacySoundHook.onSourcePlay(new FakeSource(ownedReuseProbe, "minecraft/sounds/random/owned_reuse_probe.ogg"));
+        check(org.lwjgl.openal.EFX10.FILTERS.isEmpty(), "owned-reuse probe did not release its filters");
+
         // Stress distinct ownership conflicts. Each conflict may leave the old AS filters
         // alive until context teardown because LWJGL2 cannot reliably query the aux-send
         // triple. Native resource growth must nevertheless be bounded: after 128 orphan
@@ -167,7 +195,7 @@ public final class SourceIdReuseSmokeTest {
         check(org.lwjgl.openal.EFX10.FILTERS.size() == 2,
             "new OpenAL context did not restart with a clean filter set");
 
-        System.out.println("PASS: recycled OpenAL source ids preserve third-party state, bound orphan EFX pressure, and reset ownership on context replacement");
+        System.out.println("PASS: recycled OpenAL source ids preserve third-party state, normal owned reuse stays leak-free, conflicts stay bounded, and context replacement resets ownership");
     }
 
     private static int value(java.util.Map<Integer,Integer> map, int key) {

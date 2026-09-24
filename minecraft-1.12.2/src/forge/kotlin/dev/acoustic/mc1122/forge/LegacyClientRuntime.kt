@@ -480,6 +480,25 @@ internal class LegacyClientRuntime {
         wetRenderer.invalidate(sourceId)
     }
 
+    /**
+     * OpenAL context replacement invalidates every numeric source handle from the old
+     * context. Retire all logical source generations before any result can be applied to
+     * a recycled id in the new context. Running wet jobs are generation-invalidated too.
+     * This method owns only logical/worker state; native OpenAL cleanup stays on the
+     * Paulscode owner thread inside the backends.
+     */
+    fun audioContextChanged() {
+        synchronized(sourceLock) {
+            activeSources.clear()
+            pendingSources.clear()
+            sourceFrameRefreshRevision++
+        }
+        LegacyDirectPathDiagnostic.clear()
+        completedSources.clear()
+        deferredWetResults.clear()
+        wetRenderer.clear()
+    }
+
     fun sourcePcmCaptured(sourceId: Int, generation: Long, capture: LegacySoftwareWetRenderer.PcmCapture?) {
         if (capture == null) return
         synchronized(sourceLock) {
@@ -708,9 +727,13 @@ internal class LegacyClientRuntime {
             else efx.apply(result.sourceId, result.effect, state.room(), currentRevision)
             efx.applyVelocity(result.sourceId, result.velocity, result.behavior.dopplerScale())
             if (canSoftwareWet) {
-                wetRenderer.submit(LegacySoftwareWetRenderer.Request(
-                    result.sourceId, result.generation, result.epoch, result.sceneRevision, requireNotNull(capture), requireNotNull(result.rir), result.early, result.foa, listenerForwardValue
-                ))
+                val audioContextGeneration = wetBackend.currentContextGeneration()
+                if (audioContextGeneration > 0L) {
+                    wetRenderer.submit(LegacySoftwareWetRenderer.Request(
+                        result.sourceId, result.generation, audioContextGeneration, result.epoch, result.sceneRevision,
+                        requireNotNull(capture), requireNotNull(result.rir), result.early, result.foa, listenerForwardValue
+                    ))
+                }
             }
         }
     }
@@ -723,13 +746,17 @@ internal class LegacyClientRuntime {
             drained++
             val published = publishedValue
             val active = synchronized(sourceLock) { activeSources[result.sourceId] }
-            if (active == null || active.generation != result.generation || !published.ready() || published.epoch() != result.epoch) {
+            val currentAudioContextGeneration = wetBackend.currentContextGeneration()
+            if (active == null || active.generation != result.generation ||
+                currentAudioContextGeneration <= 0L || currentAudioContextGeneration != result.audioContextGeneration ||
+                !published.ready() || published.epoch() != result.epoch) {
                 wetBackend.stale++
                 continue
             }
             val scene = published.scene()
             if (scene == null || scene.revision() < result.sceneRevision) { wetBackend.stale++; continue }
-            val applied = wetBackend.apply(result.sourceId, result.generation, result.rendered)
+            val applied = wetBackend.apply(result.sourceId, result.generation, result.audioContextGeneration, result.rendered)
+            if (applied.staleContext) continue
             if (applied.paused) { deferredWetResults.add(result); continue }
             if (applied.applied) {
                 val effect = active.lastEffect

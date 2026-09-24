@@ -15,11 +15,11 @@ import java.util.concurrent.ThreadFactory
 internal class LegacySoftwareWetRenderer(private var config: LegacyAudioConfig) : AutoCloseable {
     data class PcmCapture(val pcmMono16: ByteArray, val sampleRate: Int)
     data class Request(
-        val sourceId: Int, val generation: Long, val epoch: Long, val sceneRevision: Long,
+        val sourceId: Int, val generation: Long, val audioContextGeneration: Long, val epoch: Long, val sceneRevision: Long,
         val capture: PcmCapture, val rir: ImpulseResponse, val early: EarlyReflectionField?, val foa: FoaImpulseResponse?, val forward: Vec3
     )
     data class Result(
-        val sourceId: Int, val generation: Long, val epoch: Long, val sceneRevision: Long,
+        val sourceId: Int, val generation: Long, val audioContextGeneration: Long, val epoch: Long, val sceneRevision: Long,
         val rendered: SoftwareWetPcmRenderer.Rendered
     )
 
@@ -65,7 +65,14 @@ internal class LegacySoftwareWetRenderer(private var config: LegacyAudioConfig) 
 
     fun poll(): Result? = completed.poll()
     fun invalidate(sourceId: Int) { synchronized(lock) { pending.remove(sourceId) } }
-    fun clear() { synchronized(lock) { pending.clear() }; completed.clear() }
+    fun clear() {
+        synchronized(lock) {
+            poolGeneration++
+            pending.clear()
+            running = 0
+        }
+        completed.clear()
+    }
 
     private fun workerLoop(generation: Long) {
         while (!closed && generation == poolGeneration) {
@@ -80,7 +87,7 @@ internal class LegacySoftwareWetRenderer(private var config: LegacyAudioConfig) 
                 val out = if (request.foa != null) renderer.renderMono16(request.capture.pcmMono16, request.capture.sampleRate, request.foa, request.forward, c.wetGain)
                 else renderer.renderMono16(request.capture.pcmMono16, request.capture.sampleRate, request.rir, request.early, request.forward, c.wetGain)
                 if (generation == poolGeneration) {
-                    completed.add(Result(request.sourceId, request.generation, request.epoch, request.sceneRevision, out))
+                    completed.add(Result(request.sourceId, request.generation, request.audioContextGeneration, request.epoch, request.sceneRevision, out))
                     rendered++
                     LegacySoundHook.wakeAudioThread()
                 } else dropped++

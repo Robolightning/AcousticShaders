@@ -7,11 +7,17 @@ import java.util.LinkedHashMap
 
 /** OpenAL owner-thread backend for completed software-wet PCM. No rendering happens here. */
 internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
-    data class ApplyResult(val applied: Boolean, val evictedDrySource: Int = 0, val paused: Boolean = false)
+    data class ApplyResult(
+        val applied: Boolean,
+        val evictedDrySource: Int = 0,
+        val paused: Boolean = false,
+        val staleContext: Boolean = false
+    )
     private data class Voice(val generation: Long, val wetSource: Int, val buffer: Int)
 
     private val voices = LinkedHashMap<Int, Voice>(16, 0.75f, true)
     private var context: Any? = null
+    private var contextGeneration = 0L
     private var al10: Class<*>? = null
     private var al11: Class<*>? = null
     private var alc10: Class<*>? = null
@@ -29,10 +35,23 @@ internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
     }
 
     @Synchronized
-    fun apply(drySource: Int, generation: Long, rendered: dev.acoustic.core.dsp.SoftwareWetPcmRenderer.Rendered): ApplyResult {
+    fun apply(drySource: Int, generation: Long, rendered: dev.acoustic.core.dsp.SoftwareWetPcmRenderer.Rendered): ApplyResult =
+        apply(drySource, generation, currentContextGeneration(), rendered)
+
+    @Synchronized
+    fun apply(
+        drySource: Int,
+        generation: Long,
+        expectedContextGeneration: Long,
+        rendered: dev.acoustic.core.dsp.SoftwareWetPcmRenderer.Rendered
+    ): ApplyResult {
         if (!config.softwareWetEnabled || drySource <= 0) return ApplyResult(false)
         try {
             if (!ensureContext()) return ApplyResult(false)
+            if (expectedContextGeneration <= 0L || expectedContextGeneration != contextGeneration) {
+                stale++
+                return ApplyResult(false, staleContext = true)
+            }
             val al = requireNotNull(al10)
             val state = (call(al, "alGetSourcei", drySource, constant(al, "AL_SOURCE_STATE")) as? Number)?.toInt()
             val pausedConst = constant(al, "AL_PAUSED")
@@ -73,6 +92,9 @@ internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
     }
 
     @Synchronized
+    fun currentContextGeneration(): Long = try { if (ensureContext()) contextGeneration else 0L } catch (_: Throwable) { 0L }
+
+    @Synchronized
     fun clearSource(drySource: Int) { try { if (ensureContext()) removeVoice(drySource) } catch (_: Throwable) {} }
 
     @Synchronized
@@ -89,7 +111,11 @@ internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
             alc10 = Class.forName("org.lwjgl.openal.ALC10")
         }
         val now = call(requireNotNull(alc10), "alcGetCurrentContext") ?: return false
-        if (now != context) { context = now; voices.clear() }
+        if (now != context) {
+            context = now
+            voices.clear()
+            contextGeneration++
+        }
         return true
     }
 
