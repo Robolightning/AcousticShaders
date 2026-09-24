@@ -19,6 +19,8 @@ Room analysis is coalesced off-thread. A single analysis coordinator partitions 
 
 The deterministic release sources deliberately ship both MCP-compatible GUI methods and explicit SRG aliases because that JAR is produced without ForgeGradle reobfuscation. RFG instead compiles in MCP space and owns the MCP→SRG transformation. `dev-tools/prepare-rfg-kotlin-source.py` therefore creates a temporary RFG-only source view that removes exactly the 12 explicit SRG GUI aliases and rewrites five explicit SRG superclass calls back to their MCP equivalents. It does not edit the authoritative production tree or reflection aliases. `dev-rfg-workspace-contract.sh` verifies this transformation locally. A full `rfgReleaseGate`/`runObfClient` result is not claimed until the Gradle/RFG dependency graph is actually available and executed.
 
+Projectile `MovingSound` inherited state is handled differently from those dual-name methods. The deterministic JAR must run directly in an SRG client, so `repeat`, repeat delay, attenuation, done-playing, position, volume and pitch are written through the cached `ForgeReflection.setField` bridge with both MCP and SRG names instead of emitting direct MCP field references. A `javap -v` release gate rejects MCP-only inherited `Fieldref` entries in `ProjectileFlightSound`; the independent real-SRG compile now consumes the same production source rather than rewriting those fields only in its temporary view.
+
 ## CUDA and OpenCL
 
 At pre-init the frontend registers `CudaFdtdBackend`, `CudaGeometricBackend`, `OpenClFdtdBackend` and `OpenClGeometricBackend` independently. None is a hard launch dependency. Probe failures are logged and the runtime continues with the remaining accelerator/CPU paths.

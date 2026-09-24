@@ -140,16 +140,16 @@ internal class LegacyProjectileEmitterManager {
         private var tracked: Any? = entity
 
         init {
-            repeat = true
-            repeatDelay = 0
-            attenuationType = ISound.AttenuationType.LINEAR
+            setInheritedField(true, "repeat", "field_147659_g")
+            setInheritedField(0, "repeatDelay", "field_147665_h")
+            setInheritedField(ISound.AttenuationType.LINEAR, "attenuationType", "field_147666_i")
             syncFromEntity(entity)
         }
 
         override fun update() {
             val entity = tracked
             if (entity == null) {
-                donePlaying = true
+                setInheritedField(true, "donePlaying", "field_147668_j")
                 return
             }
             syncFromEntity(entity)
@@ -162,18 +162,24 @@ internal class LegacyProjectileEmitterManager {
             val x = ForgeReflection.numberField(entity, "posX", "field_70165_t")
             val y = ForgeReflection.numberField(entity, "posY", "field_70163_u")
             val z = ForgeReflection.numberField(entity, "posZ", "field_70161_v")
-            xPosF = x.toFloat(); yPosF = y.toFloat(); zPosF = z.toFloat()
+            setInheritedField(x.toFloat(), "xPosF", "field_147660_d")
+            setInheritedField(y.toFloat(), "yPosF", "field_147661_e")
+            setInheritedField(z.toFloat(), "zPosF", "field_147658_f")
             val vx = ForgeReflection.numberField(entity, "motionX", "field_70159_w")
             val vy = ForgeReflection.numberField(entity, "motionY", "field_70181_x")
             val vz = ForgeReflection.numberField(entity, "motionZ", "field_70179_y")
             val speed = sqrt(vx * vx + vy * vy + vz * vz)
-            volume = min(0.55f, max(0.08f, (0.10 + speed * 0.10).toFloat()))
-            pitch = min(1.35f, max(0.75f, (0.88 + speed * 0.08).toFloat()))
+            setInheritedField(min(0.55f, max(0.08f, (0.10 + speed * 0.10).toFloat())), "volume", "field_147662_b")
+            setInheritedField(min(1.35f, max(0.75f, (0.88 + speed * 0.08).toFloat())), "pitch", "field_147663_c")
+        }
+
+        private fun setInheritedField(value: Any?, mcpName: String, srgName: String) {
+            ForgeReflection.setField(this, value, mcpName, srgName)
         }
 
         fun stopNow() {
             tracked = null
-            donePlaying = true
+            setInheritedField(true, "donePlaying", "field_147668_j")
         }
     }
 

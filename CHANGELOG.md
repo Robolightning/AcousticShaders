@@ -21,6 +21,7 @@
 
 ## 0.3.0-rc20 (work in progress)
 
+- Real Forge 14.23.5.2864 gameplay validation caught a deterministic-package linkage bug in projectile flight audio: direct MCP `MovingSound`/`PositionedSound` field references (starting at `repeat`) do not exist under the SRG runtime because this release path is not ForgeGradle-reobfuscated. Projectile flight now writes all inherited sound fields through the cached MCP+SRG `ForgeReflection` bridge, the independent real-SRG source view no longer hides the issue with a temporary field rewrite, and both build-class and packaged-JAR gates reject any future MCP-only inherited `Fieldref` leakage.
 - Restored bounded vanilla projectile flight emitters for arrows, throwable entities, fireballs, llama spit and shulker bullets. Flight audio is an ordinary Minecraft `MovingSound`, so it traverses the normal SoundHandler -> Paulscode -> Mixin -> `LegacySoundHook` -> Acoustic Shaders path. Third-party projectile subclasses are not given a synthetic duplicate by default.
 - Split projectile semantics into launch / flight / impact: launch and impact remain transient while entity-derived flight sources preserve velocity metadata and Doppler sensitivity.
 - Added a probe-only, read-only `LegacyDirectPathDiagnostic` with source-generation ownership so a late asynchronous solve cannot resurrect a diagnostic after source cleanup.
