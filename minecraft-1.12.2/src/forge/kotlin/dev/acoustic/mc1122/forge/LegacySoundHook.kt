@@ -15,6 +15,7 @@ object LegacySoundHook {
     private val wet = LegacySoftwareWetBackend(LegacyAudioConfig.defaults())
     @Volatile private var runtime: LegacyClientRuntime? = null
     @Volatile private var audioThread: Thread? = null
+    @Volatile private var effectsResetRequested = false
 
     @JvmStatic @JvmName("bind") internal fun bind(r: LegacyClientRuntime) { runtime = r }
 
@@ -23,7 +24,7 @@ object LegacySoundHook {
         try {
             val id = sourceId(source)
             if (id <= 0) return
-            if (!r.effectsActive()) { efx.clearSource(id); return }
+            if (!r.effectsActive()) { wet.clearSource(id); efx.clearSource(id); return }
             val pos = position(source)
             val soundId = soundIdentifier(source)
             val gain = max(0.0, numberFieldOr(source, "gain", 1.0) * numberFieldOr(source, "sourceVolume", 1.0))
@@ -64,7 +65,18 @@ object LegacySoundHook {
         audioThread = Thread.currentThread()
         val r = runtime ?: return
         wet.reconfigure(r.legacyAudioConfig())
+        if (effectsResetRequested || !r.effectsActive()) {
+            effectsResetRequested = false
+            wet.clearAll()
+            efx.clearAll()
+            return
+        }
         r.drainFullSourceResults(efx, wet)
+    }
+
+    @JvmStatic @JvmName("requestEffectsReset") internal fun requestEffectsReset() {
+        effectsResetRequested = true
+        wakeAudioThread()
     }
 
     @JvmStatic @JvmName("wakeAudioThread") internal fun wakeAudioThread() {

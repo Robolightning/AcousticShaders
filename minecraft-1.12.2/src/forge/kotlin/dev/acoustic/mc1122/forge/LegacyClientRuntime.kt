@@ -80,6 +80,7 @@ internal class LegacyClientRuntime {
     private var lastWorld: Any? = null
     private var lastListener: Vec3? = null
     private var ticks = 0
+    private var effectsDisabledCleanupApplied = false
     private var lastFullRefreshTick = 0
     private var epoch = 1L
     private var configStamp = 0L
@@ -164,14 +165,41 @@ internal class LegacyClientRuntime {
             }
             if (configValue.debug() && ticks % 200 == 0) AcousticLog.debug("compute diagnostics: ${computeDiagnostics()}")
             if (packValue.disabled() || !configValue.effectsEnabled()) {
-                // Synthetic projectile MovingSound instances live in Minecraft's SoundHandler,
-                // not in publishedValue. If acoustics are disabled while one is active, stop it
-                // explicitly; otherwise the repeating flight sound can outlive this runtime.
-                projectileEmitters.clear()
-                LegacyDirectPathDiagnostic.clear()
-                publishedValue = LegacyPublishedState.EMPTY
-                lastListener = null
+                if (!effectsDisabledCleanupApplied) {
+                    effectsDisabledCleanupApplied = true
+                    // Client-thread cleanup owns logical state only. OpenAL objects must be
+                    // detached on Paulscode's command thread through LegacySoundHook.
+                    projectileEmitters.clear()
+                    LegacyDirectPathDiagnostic.clear()
+                    pendingRoom = null
+                    synchronized(sourceLock) {
+                        pendingSources.clear()
+                        for (source in activeSources.values) {
+                            source.lastQueuedPosition = null
+                            source.lastQueuedListener = null
+                            source.lastQueuedSceneRevision = Long.MIN_VALUE
+                            source.lastQueuedEpoch = Long.MIN_VALUE
+                            source.lastQueuedHadReflection = false
+                            source.lastEffect = null
+                            source.lastEffectRevision = Long.MIN_VALUE
+                        }
+                        sourceFrameRefreshRevision++
+                    }
+                    completedSources.clear()
+                    deferredWetResults.clear()
+                    wetRenderer.clear()
+                    publishedValue = LegacyPublishedState.EMPTY
+                    lastListener = null
+                    epoch++
+                    LegacySoundHook.requestEffectsReset()
+                }
                 return
+            }
+            if (effectsDisabledCleanupApplied) {
+                // Force a fresh capture/source-frame publication after re-enable; no result
+                // from the disabled epoch is eligible to re-apply old EFX/wet state.
+                effectsDisabledCleanupApplied = false
+                lastListener = null
             }
 
             val mc = requireNotNull(ForgeReflection.invoke(

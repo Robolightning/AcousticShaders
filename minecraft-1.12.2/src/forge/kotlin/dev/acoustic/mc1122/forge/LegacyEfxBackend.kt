@@ -12,6 +12,7 @@ import kotlin.math.pow
 /** OpenAL EFX backend invoked only from Paulscode's audio/command thread. Uses reflection to avoid compile-time LWJGL coupling. */
 internal class LegacyEfxBackend {
     private val filters = LinkedHashMap<Int, Filters>(64, 0.75f, true)
+    private val velocitySources = LinkedHashSet<Int>()
     private var context: Any? = null
     private var effect = 0
     private var slot = 0
@@ -86,10 +87,39 @@ internal class LegacyEfxBackend {
     fun clearSource(sourceId: Int) {
         if (sourceId <= 0) return
         try {
-            if (ensureContext()) removeFilters(sourceId, true)
+            if (ensureContext()) {
+                removeFilters(sourceId, true)
+                resetVelocity(sourceId)
+            }
         } catch (t: Throwable) {
             disable(t)
         }
+    }
+
+
+    /** Detach all AcousticShaders-owned EFX state and restore velocity on the OpenAL owner thread. */
+    @Synchronized
+    fun clearAll() {
+        try {
+            if (!ensureContext()) { filters.clear(); velocitySources.clear(); return }
+            val ids = LinkedHashSet<Int>()
+            ids.addAll(filters.keys)
+            ids.addAll(velocitySources)
+            for (sourceId in ids) {
+                removeFilters(sourceId, true)
+                resetVelocity(sourceId)
+            }
+        } catch (t: Throwable) {
+            disable(t)
+        }
+    }
+
+    private fun resetVelocity(sourceId: Int) {
+        if (!velocitySources.remove(sourceId)) return
+        try {
+            val al = requireNotNull(al10)
+            call(al, "alSource3f", sourceId, constant(al, "AL_VELOCITY"), 0f, 0f, 0f)
+        } catch (_: Throwable) {}
     }
 
     /** Optional projectile/fly-by Doppler. Called only on the OpenAL-owning command thread. */
@@ -109,6 +139,7 @@ internal class LegacyEfxBackend {
                 (velocity.y * scale).toFloat(),
                 (velocity.z * scale).toFloat()
             )
+            if (scale > 0f) velocitySources.add(sourceId) else velocitySources.remove(sourceId)
         } catch (t: Throwable) {
             disable(t)
         }
@@ -126,6 +157,7 @@ internal class LegacyEfxBackend {
         if (now != context) {
             context = now
             filters.clear()
+            velocitySources.clear()
             effect = 0
             slot = 0
             roomEpoch = Long.MIN_VALUE
