@@ -164,6 +164,11 @@ internal class LegacyClientRuntime {
             }
             if (configValue.debug() && ticks % 200 == 0) AcousticLog.debug("compute diagnostics: ${computeDiagnostics()}")
             if (packValue.disabled() || !configValue.effectsEnabled()) {
+                // Synthetic projectile MovingSound instances live in Minecraft's SoundHandler,
+                // not in publishedValue. If acoustics are disabled while one is active, stop it
+                // explicitly; otherwise the repeating flight sound can outlive this runtime.
+                projectileEmitters.clear()
+                LegacyDirectPathDiagnostic.clear()
                 publishedValue = LegacyPublishedState.EMPTY
                 lastListener = null
                 return
@@ -201,7 +206,6 @@ internal class LegacyClientRuntime {
             }
 
             val listener = listener(entity)
-            projectileEmitters.tick(world, entity)
             listenerForwardValue = listenerForward(entity)
             val changedWorld = world !== lastWorld
             val previousListener = lastListener
@@ -217,6 +221,7 @@ internal class LegacyClientRuntime {
                 epoch++
                 lastFullRefreshTick = ticks
             }
+            projectileEmitters.tick(world, entity)
 
             val performance = packValue.performanceTuning()
             val bootstrapPending = capture.bootstrapActive()
