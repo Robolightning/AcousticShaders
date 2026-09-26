@@ -72,7 +72,7 @@ public final class RealMinecraftLiquidTntGameplayProbeMod {
         private volatile double eventX;
         private volatile double eventY;
         private volatile double eventZ;
-        private Set<Integer> baseline = new HashSet<Integer>();
+        private Map<Integer,Object> baseline = new LinkedHashMap<Integer,Object>();
         private int sourceId;
         private float[] waterSpectrum;
         private float[] lavaSpectrum;
@@ -115,13 +115,18 @@ public final class RealMinecraftLiquidTntGameplayProbeMod {
                         if (phaseTicks > 240) fail("server scenario setup did not complete");
                         return;
                     }
-                    if (phaseTicks < 60) {
-                        maintainScenario(mc.func_71401_C(), Scenario.values()[scenarioIndex]);
+                    maintainScenario(mc.func_71401_C(), Scenario.values()[scenarioIndex]);
+                    if (phaseTicks < 60) return;
+                    if (!publishedSceneMatchesScenario(Scenario.values()[scenarioIndex])) {
+                        if (phaseTicks > 720) fail("production scene did not capture liquid/TNT layout for " + Scenario.values()[scenarioIndex].id);
                         return;
+                    }
+                    if (phaseTicks == 60 || phaseTicks % 40 == 0) {
+                        System.out.println("ACOUSTIC-LIQUID-TNT-SCENE-READY scenario=" + Scenario.values()[scenarioIndex].id + " ticks=" + phaseTicks);
                     }
                     final IntegratedServer server = mc.func_71401_C();
                     require(server != null, "integrated server disappeared before TNT spawn");
-                    baseline = new HashSet<Integer>(activeSources().keySet());
+                    baseline = activeSources();
                     serverActionComplete = false;
                     scheduleOnServer(server, new Runnable() {
                         @Override public void run() {
@@ -148,7 +153,7 @@ public final class RealMinecraftLiquidTntGameplayProbeMod {
                     if (serverFailure != null) fail("server TNT spawn failed: " + serverFailure);
                     maintainScenario(mc.func_71401_C(), Scenario.values()[scenarioIndex]);
                     for (Map.Entry<Integer,Object> e : activeSources().entrySet()) {
-                        if (baseline.contains(e.getKey())) continue;
+                        if (baseline.get(e.getKey()) == e.getValue()) continue;
                         String soundId = String.valueOf(field(e.getValue(), "soundId"));
                         if (!soundId.contains("explode")) continue;
                         Object pos = field(e.getValue(), "position");
@@ -237,7 +242,7 @@ public final class RealMinecraftLiquidTntGameplayProbeMod {
         }
 
         private void maintainScenario(final IntegratedServer server, final Scenario scenario) throws Exception {
-            if (server == null || phaseTicks % 5 != 0) return;
+            if (server == null) return;
             scheduleOnServer(server, new Runnable() {
                 @Override public void run() {
                     try {
@@ -284,7 +289,67 @@ public final class RealMinecraftLiquidTntGameplayProbeMod {
         }
 
         private static void setBlock(WorldServer world,int x,int y,int z,Block block) {
-            world.func_180501_a(new BlockPos(x,y,z),block.func_176223_P(),3);
+            world.func_180501_a(new BlockPos(x,y,z),block.func_176223_P(),2);
+        }
+
+
+        private boolean publishedSceneMatchesScenario(Scenario scenario) throws Exception {
+            Object runtime = runtime();
+            if (runtime == null) return false;
+            Object state = runtime.getClass().getMethod("published").invoke(runtime);
+            Object scene = state.getClass().getMethod("scene").invoke(state);
+            if (scene == null) return false;
+            for (int x = baseX - 1; x <= baseX + 10; x++) {
+                String expected = expectedMedium(scenario, x);
+                for (int y = baseY; y <= baseY + 1; y++) {
+                    String actual = sceneVoxelMedium(scene, x, y, baseZ);
+                    if (!expected.equals(actual)) {
+                        if (phaseTicks == 60 || phaseTicks % 40 == 0 || phaseTicks > 700) {
+                            System.out.println("ACOUSTIC-LIQUID-TNT-SCENE-MISMATCH scenario=" + scenario.id
+                                + " ticks=" + phaseTicks + " xyz=" + x + "," + y + "," + baseZ
+                                + " relative=" + (x-baseX) + "," + (y-baseY) + ",0"
+                                + " expected=" + expected + " actual=" + actual
+                                + " sceneMin=" + invoke(scene,"minX") + "," + invoke(scene,"minY") + "," + invoke(scene,"minZ")
+                                + " sceneSize=" + invoke(scene,"sizeX") + "x" + invoke(scene,"sizeY") + "x" + invoke(scene,"sizeZ"));
+                            for (int scanY = baseY; scanY <= baseY + 1; scanY++) {
+                                StringBuilder row = new StringBuilder();
+                                for (int scanX = baseX - 1; scanX <= baseX + 10; scanX++) {
+                                    if (row.length() > 0) row.append(' ');
+                                    row.append(scanX-baseX).append(':').append(sceneVoxelMedium(scene, scanX, scanY, baseZ));
+                                }
+                                System.out.println("ACOUSTIC-LIQUID-TNT-SCENE-ROW scenario=" + scenario.id
+                                    + " ticks=" + phaseTicks + " yRel=" + (scanY-baseY) + " " + row);
+                            }
+                        }
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        private String expectedMedium(Scenario scenario, int x) {
+            switch (scenario) {
+                case WATER_SOURCE_AIR_LISTENER:
+                    return x >= baseX + 7 && x <= baseX + 9 ? "acoustic:water" : "acoustic:air";
+                case AIR_SOURCE_WATER_LISTENER:
+                    return x >= baseX - 1 && x <= baseX + 1 ? "acoustic:water" : "acoustic:air";
+                case WATER_WATER:
+                    return x >= baseX - 1 && x <= baseX + 9 ? "acoustic:water" : "acoustic:air";
+                case AIR_WATER_AIR:
+                    return x >= baseX + 3 && x <= baseX + 5 ? "acoustic:water" : "acoustic:air";
+                case AIR_LAVA_AIR:
+                    return x >= baseX + 3 && x <= baseX + 5 ? "acoustic:lava" : "acoustic:air";
+                default:
+                    throw new AssertionError(scenario);
+            }
+        }
+
+        private static String sceneVoxelMedium(Object scene, int x, int y, int z) throws Exception {
+            Object voxel = scene.getClass().getMethod("voxelAt", int.class, int.class, int.class)
+                .invoke(scene, Integer.valueOf(x), Integer.valueOf(y), Integer.valueOf(z));
+            Object medium = voxel.getClass().getMethod("medium").invoke(voxel);
+            return String.valueOf(medium.getClass().getMethod("id").invoke(medium));
         }
 
         private void verifySnapshot(Scenario scenario, Object snapshot) throws Exception {
