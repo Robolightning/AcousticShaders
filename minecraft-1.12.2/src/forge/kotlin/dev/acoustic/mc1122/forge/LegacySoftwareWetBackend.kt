@@ -11,9 +11,17 @@ internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
         val applied: Boolean,
         val evictedDrySource: Int = 0,
         val paused: Boolean = false,
-        val staleContext: Boolean = false
+        val staleContext: Boolean = false,
+        val lateFallback: Boolean = false
     )
-    private data class Voice(val generation: Long, val wetSource: Int, val buffer: Int)
+    data class Transition(val drySource: Int, val generation: Long)
+    private data class Voice(
+        val generation: Long,
+        val wetSource: Int,
+        val buffer: Int,
+        val fadeStartedNanos: Long,
+        var directOnlyReady: Boolean = false
+    )
 
     private val voices = LinkedHashMap<Int, Voice>(16, 0.75f, true)
     private var context: Any? = null
@@ -24,6 +32,7 @@ internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
     @Volatile var applied: Long = 0; private set
     @Volatile var fallback: Long = 0; private set
     @Volatile var stale: Long = 0
+    @Volatile var lateFallbacks: Long = 0; private set
 
     fun reconfigure(next: LegacyAudioConfig) { config = next }
 
@@ -32,6 +41,14 @@ internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
         try { if (!ensureContext()) return false } catch (_: Throwable) { return false }
         val voice = voices[drySource] ?: return false
         return voice.generation == generation
+    }
+
+    /** True only after the software-wet voice has faded in enough to replace the EFX send. */
+    @Synchronized
+    fun directOnlyReady(drySource: Int, generation: Long): Boolean {
+        try { if (!ensureContext()) return false } catch (_: Throwable) { return false }
+        val voice = voices[drySource] ?: return false
+        return voice.generation == generation && voice.directOnlyReady
     }
 
     @Synchronized
@@ -59,6 +76,21 @@ internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
             val playingConst = constant(al, "AL_PLAYING")
             if (state != null && state != 0 && state != playingConst) return ApplyResult(false)
 
+            /*
+             * Software wet is rendered asynchronously.  Starting a brand-new wet OpenAL
+             * voice hundreds of milliseconds into a short transient is perceptually much
+             * worse than keeping the continuous EFX fallback: it sounds like a second,
+             * richer copy of the event.  Fail closed when the dry playhead is already well
+             * past the onset.  Long/looping sources are not eligible for this path upstream.
+             */
+            val secOffset = constant(requireNotNull(al11), "AL_SEC_OFFSET")
+            val offset = (call(al, "alGetSourcef", drySource, secOffset) as? Number)?.toFloat() ?: 0f
+            if (offset > MAX_LATE_WET_START_SECONDS) {
+                lateFallbacks++
+                fallback++
+                return ApplyResult(false, lateFallback = true)
+            }
+
             removeVoice(drySource)
             val buffer = (call(al, "alGenBuffers") as Number).toInt()
             val wetSource = (call(al, "alGenSources") as Number).toInt()
@@ -67,17 +99,17 @@ internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
                 val data = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder()); data.put(bytes); data.flip()
                 call(al, "alBufferData", buffer, constant(al, "AL_FORMAT_STEREO16"), data, rendered.sampleRate)
                 call(al, "alSourcei", wetSource, constant(al, "AL_BUFFER"), buffer)
-                // Renderer already applied configured wet gain; keep OpenAL gain neutral.
-                call(al, "alSourcef", wetSource, constant(al, "AL_GAIN"), 1.0f)
+                // Renderer already applied configured wet gain.  Start the native voice at
+                // zero and fade it in on subsequent owner-thread ticks so an async result
+                // cannot create a discontinuous second onset.
+                call(al, "alSourcef", wetSource, constant(al, "AL_GAIN"), 0.0f)
                 // AL_SEC_OFFSET is an OpenAL 1.1 token and LWJGL2 exposes the constant on AL11,
                 // while the scalar alGetSourcef/alSourcef entry points remain on AL10. Keeping
                 // the owner split exact prevents the runtime fallback that a permissive test stub
                 // previously hid on the real Minecraft 1.12.2 LWJGL 2.9.4 client.
-                val secOffset = constant(requireNotNull(al11), "AL_SEC_OFFSET")
-                val offset = (call(al, "alGetSourcef", drySource, secOffset) as? Number)?.toFloat() ?: 0f
                 if (offset > 0f) call(al, "alSourcef", wetSource, secOffset, offset)
                 call(al, "alSourcePlay", wetSource)
-                voices[drySource] = Voice(generation, wetSource, buffer)
+                voices[drySource] = Voice(generation, wetSource, buffer, System.nanoTime())
                 applied++
                 val evicted = trim()
                 return ApplyResult(true, evicted)
@@ -88,6 +120,36 @@ internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
             fallback++
             AcousticLog.debug("software wet OpenAL apply failed source=$drySource: ${t.message ?: t.javaClass.simpleName}")
             return ApplyResult(false)
+        }
+    }
+
+    /**
+     * Advance wet-voice fade-ins on the OpenAL owner thread.  A returned transition means
+     * the caller may now detach the legacy EFX auxiliary send for that exact source
+     * generation; until then EFX remains the continuous bridge and wet rises from silence.
+     */
+    @Synchronized
+    fun advanceTransitions(nowNanos: Long): List<Transition> {
+        if (!config.softwareWetEnabled || voices.isEmpty()) return emptyList()
+        try {
+            if (!ensureContext()) return emptyList()
+            val al = requireNotNull(al10)
+            val completed = ArrayList<Transition>()
+            for ((drySource, voice) in voices) {
+                if (voice.directOnlyReady) continue
+                val elapsed = (nowNanos - voice.fadeStartedNanos).coerceAtLeast(0L)
+                val progress = (elapsed.toDouble() / WET_FADE_NANOS.toDouble()).coerceIn(0.0, 1.0).toFloat()
+                call(al, "alSourcef", voice.wetSource, constant(al, "AL_GAIN"), progress)
+                if (progress >= 0.9999f) {
+                    voice.directOnlyReady = true
+                    completed.add(Transition(drySource, voice.generation))
+                }
+            }
+            return completed
+        } catch (t: Throwable) {
+            fallback++
+            AcousticLog.debug("software wet fade transition failed: ${t.message ?: t.javaClass.simpleName}")
+            return emptyList()
         }
     }
 
@@ -136,6 +198,10 @@ internal class LegacySoftwareWetBackend(private var config: LegacyAudioConfig) {
     private fun safeDeleteBuffer(id: Int) { try { call(requireNotNull(al10), "alDeleteBuffers", id) } catch (_: Throwable) {} }
 
     companion object {
+        /** Beyond this playhead a new transient wet voice is more likely to sound like a duplicate. */
+        const val MAX_LATE_WET_START_SECONDS = 0.22f
+        private const val WET_FADE_NANOS = 90_000_000L
+
         private fun constant(clazz: Class<*>, name: String): Int = clazz.getField(name).getInt(null)
         private fun call(clazz: Class<*>, name: String, vararg args: Any?): Any? {
             val selected: Method = clazz.methods.firstOrNull { it.name == name && it.parameterTypes.size == args.size && matches(it.parameterTypes, args) }

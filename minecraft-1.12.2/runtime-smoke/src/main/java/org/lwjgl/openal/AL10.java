@@ -27,6 +27,8 @@ public final class AL10 {
     public static final Map<Integer, byte[]> BUFFERS = new HashMap<Integer, byte[]>();
     public static final Map<Integer, float[]> VELOCITIES = new HashMap<Integer, float[]>();
     public static final Map<Integer, Integer> DIRECT_FILTERS = new HashMap<Integer, Integer>();
+    public static final Map<Integer, Float> GAINS = new HashMap<Integer, Float>();
+    public static final Map<Integer, Float> SOURCE_OFFSETS = new HashMap<Integer, Float>();
 
     private static volatile CountDownLatch directFilterEntered;
     private static volatile CountDownLatch directFilterRelease;
@@ -112,7 +114,10 @@ public final class AL10 {
         }
     }
 
-    public static void alSourcef(int source, int param, float value) {}
+    public static void alSourcef(int source, int param, float value) {
+        if (param == AL_GAIN) GAINS.put(source, value);
+        if (param == AL11.AL_SEC_OFFSET) SOURCE_OFFSETS.put(source, value);
+    }
 
     public static int alGetSourcei(int source, int param) {
         if (param == AL_SOURCE_STATE) return STATES.containsKey(source) ? STATES.get(source) : AL_PLAYING;
@@ -121,7 +126,7 @@ public final class AL10 {
     }
 
     public static float alGetSourcef(int source, int param) {
-        return param == AL11.AL_SEC_OFFSET ? 0.125f : 0f;
+        return param == AL11.AL_SEC_OFFSET ? (SOURCE_OFFSETS.containsKey(source) ? SOURCE_OFFSETS.get(source) : 0.125f) : 0f;
     }
 
     public static int alGenBuffers() { return nextBuffer++; }

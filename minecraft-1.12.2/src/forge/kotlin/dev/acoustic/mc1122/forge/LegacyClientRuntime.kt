@@ -1,5 +1,6 @@
 package dev.acoustic.mc1122.forge
 
+import dev.acoustic.api.environment.AcousticEnvironment
 import dev.acoustic.api.material.resolve.MaterialRule
 import dev.acoustic.api.environment.resolve.MediumRule
 import dev.acoustic.api.math.Vec3
@@ -26,6 +27,7 @@ import dev.acoustic.core.scene.ImmutableVoxelSnapshot
 import dev.acoustic.core.source.SourceBudgetAllocator
 import dev.acoustic.core.source.SourceCandidate
 import dev.acoustic.core.source.profile.SourceProfileResolver
+import dev.acoustic.core.trace.LayeredMediumRefraction
 import dev.acoustic.platform.ListenerSnapshot
 import dev.acoustic.platform.PlatformFrameSnapshot
 import dev.acoustic.platform.PlatformFrameValidator
@@ -468,6 +470,28 @@ internal class LegacyClientRuntime {
 
     fun sourceProfileFor(soundId: String?): AcousticSourceProfile = effectiveSourceProfile(sourceProfiles.resolve(soundId), packValue)
 
+    /**
+     * Physical one-way arrival time for the direct event.  The full shader already uses the
+     * same medium-aware path for RIR/reflections; exposing it here lets the legacy audio hook
+     * delay the *first* native dry sample as well instead of only delaying processed energy.
+     * When the scene is not ready yet, fall back to straight-line air propagation rather than
+     * reverting to the vanilla infinite-speed onset.
+     */
+    fun directPropagationDelaySeconds(position: Vec3?): Double {
+        if (closed || position == null) return 0.0
+        val state = publishedValue
+        val listener = state.listener() ?: return 0.0
+        val distance = position.distance(listener)
+        if (!distance.isFinite() || distance <= 1.0e-9) return 0.0
+        val scene = state.scene()
+        if (scene == null) return distance / AcousticEnvironment.STANDARD.speedOfSoundMetersPerSecond()
+        return try {
+            LayeredMediumRefraction.bestEffort(scene, position, listener, AcousticEnvironment.STANDARD).delaySeconds
+        } catch (_: Throwable) {
+            distance / AcousticEnvironment.STANDARD.speedOfSoundMetersPerSecond()
+        }
+    }
+
     fun sourceMoved(sourceId: Int, position: Vec3?) {
         if (closed || sourceId <= 0 || position == null) return
         val published = publishedValue
@@ -766,7 +790,9 @@ internal class LegacyClientRuntime {
         if (!audioConfig.softwareWetEnabled) {
             for (sourceId in wetBackend.clearAll()) restoreEfx(sourceId, efx)
         }
+        finishWetTransitions(efx, wetBackend)
         drainWetResults(efx, wetBackend)
+        finishWetTransitions(efx, wetBackend)
         var drained = 0
         while (drained < 32) {
             val result = completedSources.poll() ?: break
@@ -805,7 +831,7 @@ internal class LegacyClientRuntime {
             active.lastEffectRevision = currentRevision
             val capture = active.pcmCapture
             val canSoftwareWet = audioConfig.softwareWetEnabled && capture != null && result.rir != null && !active.streaming && !active.looping
-            if (canSoftwareWet && wetBackend.isActive(result.sourceId, result.generation)) efx.applyDirectOnly(result.sourceId, result.effect)
+            if (canSoftwareWet && wetBackend.directOnlyReady(result.sourceId, result.generation)) efx.applyDirectOnly(result.sourceId, result.effect)
             else efx.apply(result.sourceId, result.effect, state.room(), currentRevision)
             efx.applyVelocity(result.sourceId, result.velocity, result.behavior.dopplerScale())
             if (canSoftwareWet) {
@@ -839,14 +865,30 @@ internal class LegacyClientRuntime {
                 }
                 val scene = published.scene()
                 if (scene == null || scene.revision() < result.sceneRevision) { wetBackend.stale++; return@synchronized }
+                if (LegacySoundHook.isPropagationDelayed(result.sourceId, result.generation)) {
+                    deferredWetResults.add(result)
+                    return@synchronized
+                }
                 val applied = wetBackend.apply(result.sourceId, result.generation, result.audioContextGeneration, result.rendered)
                 if (applied.staleContext) return@synchronized
                 if (applied.paused) { deferredWetResults.add(result); return@synchronized }
                 if (applied.applied) {
-                    val effect = active.lastEffect
-                    if (effect != null) efx.applyDirectOnly(result.sourceId, effect)
                     if (applied.evictedDrySource > 0) restoreEfx(applied.evictedDrySource, efx)
                 }
+            }
+        }
+    }
+
+    private fun finishWetTransitions(efx: LegacyEfxBackend, wetBackend: LegacySoftwareWetBackend) {
+        val transitions = wetBackend.advanceTransitions(System.nanoTime())
+        if (transitions.isEmpty()) return
+        synchronized(sourceLock) {
+            if (closed) return
+            for (transition in transitions) {
+                val active = activeSources[transition.drySource] ?: continue
+                if (active.generation != transition.generation) continue
+                val effect = active.lastEffect ?: continue
+                efx.applyDirectOnly(transition.drySource, effect)
             }
         }
     }
@@ -902,6 +944,7 @@ internal class LegacyClientRuntime {
             "sourceFrameRefresh={requested=$sourceFrameRefreshRevision scheduled=$scheduledSourceFrameRefreshRevision} " +
             "shaderStack={active=${shaderPackActiveFingerprint.take(12)} observed=${shaderPackObservedFingerprint.take(12)}} " +
             "softwareWet={enabled=${audioConfig.softwareWetEnabled} submitted=${wetRenderer.submitted} rendered=${wetRenderer.rendered} dropped=${wetRenderer.dropped} failures=${wetRenderer.failures}} " +
+            "propagation={${LegacySoundHook.propagationDiagnostics()}} " +
             "rayCompute={${rayBackendDiagnostics()}} waveCompute={${waveBackendDiagnostics()}}"
 
     fun published(): LegacyPublishedState = publishedValue
