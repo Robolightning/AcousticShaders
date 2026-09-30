@@ -16,13 +16,27 @@ if find "${PRODUCTION_ROOTS[@]}" -type f -name '*.java' -print -quit | grep -q .
   exit 1
 fi
 
-# Do not ship unresolved marker comments in production. Match explicit marker syntax only, not words
-# such as "temporary" used as ordinary variable names.
-if rg -n --glob '*.kt' --glob '*.kts' --glob '*.java' --glob '*.cu' --glob '*.cl' \
-  '(?i)(//|/\*|\*)[[:space:]]*(TODO|FIXME|HACK|XXX)([(:[:space:]]|$)' "${PRODUCTION_ROOTS[@]}"; then
-  echo 'ERROR: unresolved TODO/FIXME/HACK/XXX marker in production' >&2
-  exit 1
-fi
+# Do not ship unresolved marker comments in production. Use Python rather than ripgrep so this gate
+# runs unchanged in stock Git Bash, CI and the exact Windows release environment.
+python3 - "${PRODUCTION_ROOTS[@]}" <<'PYMARKERS'
+from pathlib import Path
+import re,sys
+pattern=re.compile(r'(//|/\*|\*)\s*(TODO|FIXME|HACK|XXX)([(:\s]|$)',re.I)
+allowed={'.kt','.kts','.java','.cu','.cl'}
+found=[]
+for root in map(Path,sys.argv[1:]):
+    if not root.exists():
+        continue
+    for path in root.rglob('*'):
+        if not path.is_file() or path.suffix.lower() not in allowed:
+            continue
+        for lineno,line in enumerate(path.read_text(encoding='utf-8').splitlines(),1):
+            if pattern.search(line):
+                found.append(f'{path.as_posix()}:{lineno}:{line.strip()}')
+if found:
+    print('\n'.join(found))
+    raise SystemExit('ERROR: unresolved TODO/FIXME/HACK/XXX marker in production')
+PYMARKERS
 
 # No editor/merge/temporary artefacts may be tracked.
 if git ls-files | grep -E '(^|/)(\.DS_Store|Thumbs\.db)$|(~|\.bak|\.orig|\.rej|\.tmp)$|(^|/)(out|dist|build|\.gradle|\.idea|\.vscode)/' >/tmp/acoustic-hygiene-junk.$$; then
@@ -34,12 +48,35 @@ fi
 rm -f /tmp/acoustic-hygiene-junk.$$
 
 # Public tooling must not embed the maintainer's private machine paths or ChatGPT workspace paths.
-if rg -n 'C:\\Users\\Robolightning\\|/mnt/data/|ChatGPT-AcousticShaders' \
-  --glob '!LICENSE' --glob '!README.md' --glob '!README.ru.md' --glob '!CHANGELOG.md' \
-  --glob '!minecraft-1.12.2/src/forge/resources/mcmod.info' --glob '!dev-release-hygiene.sh' .; then
-  echo 'ERROR: machine-local development path leaked into tracked public tooling/docs' >&2
-  exit 1
-fi
+python3 - <<'PYPATHS'
+from pathlib import Path
+import subprocess
+excluded={
+    'LICENSE','README.md','README.ru.md','CHANGELOG.md','dev-release-hygiene.sh',
+    'minecraft-1.12.2/src/forge/resources/mcmod.info',
+}
+needles=('C:\\Users\\Robolightning\\','/mnt/data/','ChatGPT-AcousticShaders')
+found=[]
+for name in subprocess.check_output(['git','ls-files'],text=True).splitlines():
+    if name in excluded:
+        continue
+    p=Path(name)
+    if not p.is_file():
+        continue
+    data=p.read_bytes()
+    if b'\0' in data:
+        continue
+    try:
+        text=data.decode('utf-8')
+    except UnicodeDecodeError:
+        continue
+    for lineno,line in enumerate(text.splitlines(),1):
+        if any(needle in line for needle in needles):
+            found.append(f'{name}:{lineno}:{line.strip()}')
+if found:
+    print('\n'.join(found))
+    raise SystemExit('ERROR: machine-local development path leaked into tracked public tooling/docs')
+PYPATHS
 
 # Enforce cross-platform path/text invariants before public release.
 python3 - <<'PYREPO'
