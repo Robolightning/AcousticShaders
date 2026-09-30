@@ -1,0 +1,11 @@
+# Keep source/release inputs byte-stable across Linux and Windows checkouts.
+* text=auto eol=lf
+
+# Binary assets and packaged fixtures must never undergo line-ending conversion.
+*.png binary
+*.ogg binary
+*.zip binary
+*.jar binary
+*.gz binary
+*.zst binary
+*.xz binary

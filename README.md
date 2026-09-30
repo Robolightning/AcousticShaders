@@ -12,6 +12,7 @@ The first release target is **Minecraft 1.12.2 + Forge**. The acoustic API and c
 The first-party **Reference Acoustic Shader** combines:
 
 - frequency-dependent direct transmission and occlusion;
+- finite medium-aware propagation time for eligible positional one-shot sounds;
 - exact partial-block collision geometry for slabs, stairs, fences, panes, bars, doors and compatible modded shapes;
 - diffraction around obstructing geometry;
 - multi-bounce geometric ray tracing with material absorption/scattering/transmission;

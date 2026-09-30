@@ -9,7 +9,7 @@
 
 ## Основные возможности
 
-Reference Acoustic Shader умеет частотно-зависимое прохождение сквозь стены, точную геометрию неполных блоков, дифракцию, многократные отражения, early/late response, MODAL/FDTD low-frequency wave simulation, wave/ray hybridization, отдельную обработку взрывов/снарядов/шагов/машин и адаптивные CPU/GPU budgets.
+Reference Acoustic Shader умеет частотно-зависимое прохождение сквозь стены, конечную скорость распространения звука по средам, точную геометрию неполных блоков, дифракцию, многократные отражения, early/late response, MODAL/FDTD low-frequency wave simulation, wave/ray hybridization, отдельную обработку взрывов/снарядов/шагов/машин и адаптивные CPU/GPU budgets.
 
 Пресеты: `POTATO`, `LOW`, `MEDIUM`, `HIGH`, `ULTRA`, `MAXIMUM`. `ULTRA`/`MAXIMUM` ориентированы прежде всего на качество и мощное железо, но оптимизация и безопасное распределение вычислений сохраняются на всех профилях.
 

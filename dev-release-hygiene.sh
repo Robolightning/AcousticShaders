@@ -41,6 +41,39 @@ if rg -n 'C:\\Users\\Robolightning\\|/mnt/data/|ChatGPT-AcousticShaders' \
   exit 1
 fi
 
+# Enforce cross-platform path/text invariants before public release.
+python3 - <<'PYREPO'
+from pathlib import Path
+import subprocess
+files=subprocess.check_output(['git','ls-files'],text=True).splitlines()
+seen={}
+binary_suffixes={'.png','.ogg','.zip','.jar','.gz','.zst','.xz'}
+for name in files:
+    key=name.casefold()
+    other=seen.get(key)
+    if other is not None and other != name:
+        raise SystemExit(f'ERROR: case-insensitive path collision: {other} <-> {name}')
+    seen[key]=name
+    p=Path(name)
+    if not p.is_file() or p.suffix.lower() in binary_suffixes:
+        continue
+    data=p.read_bytes()
+    if b'\0' in data:
+        continue
+    try:
+        data.decode('utf-8')
+    except UnicodeDecodeError as exc:
+        raise SystemExit(f'ERROR: tracked text is not UTF-8: {name}: {exc}')
+    if b'\r\n' in data or b'\r' in data:
+        raise SystemExit(f'ERROR: tracked text is not canonical LF: {name}')
+print(f'[PASS] cross-platform path/UTF-8/LF invariants: {len(files)} tracked paths')
+PYREPO
+
+# Shell entry points are expected to preserve their executable bit in Git.
+while IFS=$'\t' read -r mode path; do
+  [[ "$mode" == "100755" ]] || { echo "ERROR: shell script is not executable in Git: $path ($mode)" >&2; exit 1; }
+done < <(git ls-files -s '*.sh' | awk '{print $1 "\t" $4}')
+
 # Parse every tracked JSON document outside generated directories.
 python3 - <<'PY'
 from pathlib import Path

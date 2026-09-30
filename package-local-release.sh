@@ -69,7 +69,7 @@ Acoustic Shaders 0.3.0-rc20 — Minecraft 1.12.2
 - MixinBooter 11.15;
 - Forgelin-Continuous 2.4.0.0+ (обычный старый Forgelin одновременно не устанавливать).
 
-RC20 — продолжение полностью Kotlin production-ветки: entity-derived projectile flight emitters, direct-path gameplay diagnostics, универсальные Forge-fluid media и transactional custom-shader hot reload поверх проверенной RC19 базы. Reference Acoustic Shader сохраняет POTATO / LOW / MEDIUM / HIGH / ULTRA / MAXIMUM, progressive world capture RC18, CUDA -> OpenCL -> CPU fallback и полный live Acoustic Shader DAG.
+Этот release candidate использует полностью Kotlin production-ветку: entity-derived projectile flight emitters, finite speed-of-sound delay, direct-path diagnostics, универсальные Forge-fluid media, transactional custom-shader hot reload, progressive world capture, CUDA -> OpenCL -> CPU fallback и полный live Acoustic Shader DAG. Reference Acoustic Shader сохраняет POTATO / LOW / MEDIUM / HIGH / ULTRA / MAXIMUM.
 
 Новая жидкостная акустика:
 - AIR / WATER / LAVA и modded `acoustic_media`;

@@ -31,4 +31,4 @@ Before the final `0.3.0` tag, the final cleanup HEAD must pass again:
 5. packaged-JAR smoke tests and release archive integrity;
 6. targeted physical recheck only if cleanup touches production audio/physics/native behavior.
 
-Publication happens only after those gates are green: push the clean repository to GitHub, create the signed/tagged GitHub release from the exact verified artifact, then publish the same verified JAR and matching metadata to CurseForge and Modrinth. No platform receives a separately rebuilt binary.
+Publication happens only after those gates are green: push the clean repository to GitHub, create the versioned/tagged GitHub release from the exact verified artifact, then publish the same verified JAR and matching metadata to CurseForge and Modrinth. No platform receives a separately rebuilt binary.
