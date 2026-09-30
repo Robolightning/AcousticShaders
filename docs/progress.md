@@ -1,4 +1,4 @@
-# Project status — 0.3.0-rc20 release cleanup
+# Project status — 0.3.0 final candidate
 
 `0.3.0` is scoped to **Minecraft 1.12.2 / Forge 14.23.5.2864 only**. The portable acoustic API remains version-neutral, but no newer Minecraft version is part of this release or claimed compatible.
 
@@ -20,7 +20,7 @@ The promoted candidate has already demonstrated all of the following on the trac
 
 ## Release-cleanup policy
 
-The project is now in **release hardening**, not feature development. Cleanup changes should reduce ambiguity, stale documentation, private-machine assumptions or tooling drift without redesigning already verified physics/audio hot paths.
+The project is in **final release hardening**, not feature development. Cleanup changes should reduce ambiguity, stale documentation, private-machine assumptions or tooling drift without redesigning already verified physics/audio hot paths.
 
 Before the final `0.3.0` tag, the final cleanup HEAD must pass again:
 

@@ -1,23 +1,17 @@
 # Changelog
 
-## Unreleased / 1.0.0 preparation
-- Cross-version atomic source snapshots now preserve the resolved `AcousticSourceProfile`; `PlatformAdapterRuntime` publishes source id/profile into the typed shader DAG while retaining the four-argument Java snapshot constructor as a generic-profile compatibility overload.
+## 0.3.0
 
-- Production implementation is now 100% Kotlin; Java remains only in deliberate external-API test/contract stubs.
-- Added explicit AIR/WATER/LAVA propagation media, impedance/refraction/bulk-loss transport, heterogeneous FDTD, and partial-volume liquid surfaces.
-- Added configurable `acoustic_media` overlays for ordinary Resource Packs and declarative shader-pack `media/` data so modded fluids can define density, sound speed and eight-band bulk attenuation independently from surface material.
-- Minecraft 1.12.2 flowing/modded fluids publish a separate medium fill shape; reflective `getFilledPercentage(world,pos)` is used when available and medium overlays hot-reload transactionally.
-- Release logging is concise by default; detailed solver/capture/GPU/path diagnostics require `debug=true`.
-- Public project metadata names Robolightning as author and uses the MIT license.
-- Documentation reorganized around user, resource-pack, Acoustic Shader and extension-author workflows.
-- Final hardware gate: ULTRA/MAXIMUM CUDA FDTD and frame pacing on a real NVIDIA/legacy Minecraft client.
-- Added a manifest-verified offline RetroFuturaGradle build-environment pack/import contract covering the official Gradle 8.14.3 ZIP, exact RFG 1.4.9 Git commit, dependency/RFG caches and the Gradle-managed Java 8 toolchain; the local runner now has a no-task preflight mode and pins bootstrap Java 17.
-- Started the cross-version adapter stage with an immutable `PlatformFrameSnapshot` boundary and version-neutral `PlatformAdapterRuntime`: adapters can capture scene/listener/sources as one logical frame, capability negotiation happens before activation, non-finite/duplicate source data is rejected, and stale frame-sequence regressions are detected without coupling the portable runtime to any Minecraft loader.
-- Added a minimal frame-only `PlatformFrameAdapter` contract for modern frontends; `PlatformAdapterRuntime` now depends on that atomic interface while the older split-capture `AcousticPlatformAdapter` remains source-compatible as a legacy/default bridge.
-- Preserved platform source/listener metadata through the version-neutral runtime: `source.gain`, `listener.forward` and `listener.up` are now typed DAG resources alongside source id/profile, with backward-compatible runtime overloads and neutral defaults; RC19 standard propagation intentionally does not re-apply Minecraft source gain.
-- Extended that atomic metadata seam with `source.velocity` and `listener.velocity`; legacy Java snapshot/runtime call shapes remain available with zero-motion defaults, while Minecraft 1.12.2 now carries its already-computed source velocity into the immutable platform frame instead of dropping it before the portable boundary.
-- Routed the Minecraft 1.12.2 production capture path through that atomic frame boundary: listener state and immutable active-source seeds are frozen with the captured scene before asynchronous room/reflection work, so delayed source scheduling cannot mix geometry/listener state from one capture with live source state from a later tick; generation guards still discard stopped/replaced sources before queueing.
-- Closed the late-source race introduced by that stricter frame ownership: when a Paulscode source starts before the current room/reflection frame is full-ready, the runtime requests one coalesced source-frame refresh on the next client tick so the source is solved from a newly coherent scene/listener/source frame instead of starving or being mixed into an older frame.
+- First stable public release for **Minecraft 1.12.2 / Forge 14.23.5.2864**.
+- Production implementation is Kotlin/JVM 8 with mandatory MixinBooter 11.15 and Forgelin-Continuous 2.4.0.0+.
+- Reference Acoustic Shader provides POTATO/LOW/MEDIUM/HIGH/ULTRA/MAXIMUM profiles, exact partial-block geometry, transmission, diffraction, multi-bounce rays, modal/FDTD wave simulation, hybrid RIR and optional software-wet convolution.
+- AIR/WATER/LAVA and modded volume media support density, speed of sound, eight-band attenuation, impedance boundaries, Snell/Fermat refraction, partial/flowing fluid surfaces and heterogeneous CPU FDTD.
+- Vanilla projectile flight emitters, source profiles, Doppler and finite medium-aware first-arrival delay run through the ordinary Minecraft -> Paulscode -> Mixin -> Acoustic Shaders path.
+- Transactional Acoustic Shader directory/ZIP hot reload and Resource Pack acoustic material/media/source overlays preserve the last-good runtime on invalid edits.
+- CUDA and OpenCL ray/FDTD backends include first-use CPU equivalence validation and safe fallback.
+- Generated default material/source data provides broad vanilla/modded compatibility while remaining overrideable by Resource Packs.
+- Release validation covers 54 headless + 39 advanced regressions, six Reference profiles, Java-8 bytecode/API fencing, real-SRG/Forge contracts, real EntityTippedArrow and TNT AIR/WATER/LAVA gameplay, physical CUDA-FDTD, physical Windows audio/software-wet output and the final human perceptual double-onset check.
+- Repository/release hardening adds cross-platform LF normalization, JSON/ZIP/version/path hygiene checks, deterministic package rebuilding and version-agnostic exact Kotlin 2.4 CI.
 
 ## 0.3.0-rc20 (release candidate)
 

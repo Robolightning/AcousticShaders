@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 OUT="$ROOT/out"
 DIST="$ROOT/dist"
-VERSION='0.3.0-rc20'
+VERSION='0.3.0'
 JAR="$DIST/acoustic-shaders-mc1122-$VERSION.jar"
 STAMP="$OUT/release-verification.stamp"
 cd "$ROOT"
@@ -62,14 +62,14 @@ with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
 PYDATA
 cp "$ROOT/windows/Install-And-Test-AcousticShaders-1.12.2.ps1" "$DIST/Install-And-Test-AcousticShaders-1.12.2.ps1"
 cat > "$DIST/FIRST-TEST-RU.txt" <<'TXT'
-Acoustic Shaders 0.3.0-rc20 — Minecraft 1.12.2
+Acoustic Shaders 0.3.0 — Minecraft 1.12.2
 
 Обязательные зависимости:
 - Forge 14.23.5.2864;
 - MixinBooter 11.15;
 - Forgelin-Continuous 2.4.0.0+ (обычный старый Forgelin одновременно не устанавливать).
 
-Этот release candidate использует полностью Kotlin production-ветку: entity-derived projectile flight emitters, finite speed-of-sound delay, direct-path diagnostics, универсальные Forge-fluid media, transactional custom-shader hot reload, progressive world capture, CUDA -> OpenCL -> CPU fallback и полный live Acoustic Shader DAG. Reference Acoustic Shader сохраняет POTATO / LOW / MEDIUM / HIGH / ULTRA / MAXIMUM.
+Финальный релиз использует полностью Kotlin production-ветку: entity-derived projectile flight emitters, finite speed-of-sound delay, direct-path diagnostics, универсальные Forge-fluid media, transactional custom-shader hot reload, progressive world capture, CUDA -> OpenCL -> CPU fallback и полный live Acoustic Shader DAG. Reference Acoustic Shader сохраняет POTATO / LOW / MEDIUM / HIGH / ULTRA / MAXIMUM.
 
 Новая жидкостная акустика:
 - AIR / WATER / LAVA и modded `acoustic_media`;

@@ -2,5 +2,5 @@ plugins { base }
 
 allprojects {
     group = "dev.acoustic"
-    version = "0.3.0-rc20"
+    version = "0.3.0"
 }

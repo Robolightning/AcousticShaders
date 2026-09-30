@@ -44,7 +44,7 @@ On the user's WSL, with the previously verified Kotlin 2.4.0 distribution still 
 
 The final integration artifact is expected at:
 
-`rfg-1.12.2/build/libs/acoustic-shaders-mc1122-0.3.0-rc20.jar`
+`rfg-1.12.2/build/libs/acoustic-shaders-mc1122-0.3.0.jar`
 
 If an older WSL run left `~/acoustic-rfg-1.12.2/RetroFuturaGradle-1.4.9-forge2864`, the bootstrap reuses its local Git objects to create the new clean `RetroFuturaGradle-1.4.9` checkout. It does not modify or trust the old worktree, so the obsolete uncommitted 2847→2864 patch cannot leak into the corrected userdev/tooling path.
 

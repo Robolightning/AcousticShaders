@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"; cd "$ROOT"
 : "${ACOUSTIC_WINDOWS_JAVA8:?set ACOUSTIC_WINDOWS_JAVA8}"
 : "${ACOUSTIC_MIXINBOOTER_JAR:?set ACOUSTIC_MIXINBOOTER_JAR}"
 : "${ACOUSTIC_FORGELIN_CONTINUOUS_JAR:?set ACOUSTIC_FORGELIN_CONTINUOUS_JAR}"
-MOD_JAR="${ACOUSTIC_MOD_JAR:-$ROOT/dist/acoustic-shaders-mc1122-0.3.0-rc20.jar}"
+MOD_JAR="${ACOUSTIC_MOD_JAR:-$ROOT/dist/acoustic-shaders-mc1122-0.3.0.jar}"
 OUT="${ACOUSTIC_CLIENT_OUT:-$ROOT/out/forge1122-client-launch}"
 BOOT_LEVEL="${ACOUSTIC_CLIENT_BOOT_LEVEL:-init}"
 BOOT_TIMEOUT="${ACOUSTIC_CLIENT_BOOT_TIMEOUT:-120}"
@@ -220,7 +220,7 @@ fatal_re = re.compile(
 init_markers = (
     'MinecraftForge v14.23.5.2864 Initialized',
     f'Forge Mod Loader has identified {expected_mod_count} mods to load',
-    'Added acoustic-shaders-mc1122-0.3.0-rc20.jar to the classloader',
+    'Added acoustic-shaders-mc1122-0.3.0.jar to the classloader',
     'Acoustic Shaders Default Materials',
     'textures-atlas',
     '[AcousticShaders] initialized for Minecraft 1.12.2',

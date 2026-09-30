@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
-MOD_JAR="${ACOUSTIC_MOD_JAR:-$ROOT/dist/acoustic-shaders-mc1122-0.3.0-rc20.jar}"
+MOD_JAR="${ACOUSTIC_MOD_JAR:-$ROOT/dist/acoustic-shaders-mc1122-0.3.0.jar}"
 MC_SRG_JAR="${ACOUSTIC_REAL_SRG_MC_JAR:-$ROOT/out/real-srg/minecraft-client-srg.jar}"
 FORGE_SRG_JAR="${ACOUSTIC_REAL_SRG_FORGE_JAR:-$ROOT/out/real-srg/forge-srg.jar}"
 OUT="${ACOUSTIC_REAL_MINECRAFT_LIQUID_TNT_GAMEPLAY_OUT:-$ROOT/out/winlab-real-minecraft-liquid-tnt-gameplay}"

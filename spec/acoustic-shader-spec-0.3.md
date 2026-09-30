@@ -49,7 +49,7 @@ The runtime may publish the portable resources:
 - `listener.velocity` — platform-reported listener velocity in world units per second when available, otherwise a zero vector;
 - `source.behavior` — shader-produced effective source behavior after shader-local strength/toggles are applied.
 
-`standard.source_behavior` reads `source.profile` optionally and writes `source.behavior`. A third-party shader may omit this stage, replace it through a trusted extension pass, or consume `source.profile` from another stage. Source profile data MUST remain data-only and cannot execute code. Gain/velocity/orientation resources are metadata inputs; the Reference RC20 propagation graph does not implicitly multiply gain or apply an additional Doppler transform merely because those resources are present.
+`standard.source_behavior` reads `source.profile` optionally and writes `source.behavior`. A third-party shader may omit this stage, replace it through a trusted extension pass, or consume `source.profile` from another stage. Source profile data MUST remain data-only and cannot execute code. Gain/velocity/orientation resources are metadata inputs; the Reference standard propagation graph does not implicitly multiply gain or apply an additional Doppler transform merely because those resources are present.
 
 ## 4. Shader-local presets and user overrides
 

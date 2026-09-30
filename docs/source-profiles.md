@@ -142,7 +142,7 @@ The direct sound is still started immediately by Minecraft/Paulscode; expensive 
 
 ### Projectile emitters and source-profile scope
 
-Source profiles still describe **how an existing/derived sound is processed**; they do not themselves execute entity logic or synthesize arbitrary mod sounds. RC20's Minecraft 1.12.2 adapter now supplies a bounded derived `acousticshaders:projectile.flight` `MovingSound` for supported vanilla projectile families (arrows, throwable entities, fireballs, llama spit and shulker bullets). That ordinary Minecraft sound then resolves the `projectile` source profile and traverses the normal SoundHandler -> Paulscode -> Mixin -> `LegacySoundHook` -> Acoustic Shaders path. Third-party projectile subclasses are intentionally not given a synthetic duplicate by default, so mod-provided flight audio remains authoritative.
+Source profiles still describe **how an existing/derived sound is processed**; they do not themselves execute entity logic or synthesize arbitrary mod sounds. The Minecraft 1.12.2 adapter now supplies a bounded derived `acousticshaders:projectile.flight` `MovingSound` for supported vanilla projectile families (arrows, throwable entities, fireballs, llama spit and shulker bullets). That ordinary Minecraft sound then resolves the `projectile` source profile and traverses the normal SoundHandler -> Paulscode -> Mixin -> `LegacySoundHook` -> Acoustic Shaders path. Third-party projectile subclasses are intentionally not given a synthetic duplicate by default, so mod-provided flight audio remains authoritative.
 
 ## Hot reload and generated defaults
 
