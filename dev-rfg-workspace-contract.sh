@@ -17,8 +17,8 @@ grep -F "@{ Label = 'wsl.exe -l -v'; Args = @('-l', '-v') }" rfg-1.12.2/run-rfg-
 grep -F "Write-WslFailureDiagnostics -Path \$Failure" rfg-1.12.2/run-rfg-gate-windows.ps1 >/dev/null
 grep -F 'return "/mnt/$drive/$tail"' rfg-1.12.2/run-rfg-gate-windows.ps1 >/dev/null
 grep -F '$Matches[2].Replace([char]92, [char]47)' rfg-1.12.2/run-rfg-gate-windows.ps1 >/dev/null
-grep -F "PathSelfTestInput = 'C:\Users\Robolightning\Downloads\AcousticShaders-RFG-WSL-RUN.sh'" rfg-1.12.2/run-rfg-gate-windows.ps1 >/dev/null
-grep -F "PathSelfTestExpected = '/mnt/c/Users/Robolightning/Downloads/AcousticShaders-RFG-WSL-RUN.sh'" rfg-1.12.2/run-rfg-gate-windows.ps1 >/dev/null
+grep -F "PathSelfTestInput = 'C:\Users\ExampleUser\Downloads\AcousticShaders-RFG-WSL-RUN.sh'" rfg-1.12.2/run-rfg-gate-windows.ps1 >/dev/null
+grep -F "PathSelfTestExpected = '/mnt/c/Users/ExampleUser/Downloads/AcousticShaders-RFG-WSL-RUN.sh'" rfg-1.12.2/run-rfg-gate-windows.ps1 >/dev/null
 python3 - <<'PY'
 from pathlib import Path
 s = Path('rfg-1.12.2/run-rfg-gate-windows.ps1').read_text()

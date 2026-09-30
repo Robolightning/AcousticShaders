@@ -19,7 +19,12 @@
 - Routed the Minecraft 1.12.2 production capture path through that atomic frame boundary: listener state and immutable active-source seeds are frozen with the captured scene before asynchronous room/reflection work, so delayed source scheduling cannot mix geometry/listener state from one capture with live source state from a later tick; generation guards still discard stopped/replaced sources before queueing.
 - Closed the late-source race introduced by that stricter frame ownership: when a Paulscode source starts before the current room/reflection frame is full-ready, the runtime requests one coalesced source-frame refresh on the next client tick so the source is solved from a newly coherent scene/listener/source frame instead of starving or being mixed into an older frame.
 
-## 0.3.0-rc20 (work in progress)
+## 0.3.0-rc20 (release candidate)
+
+- Added finite live propagation delay for eligible positional one-shots: the first native Paulscode sample now respects the medium-aware path time already calculated by the acoustic core instead of arriving immediately. Streaming/looping/non-attenuated/bypass sounds keep vanilla timing.
+- Hardened software-wet activation against the audible double-onset defect: late convolution results no longer start a new wet voice, timely wet voices fade in, and EFX handoff occurs only after the transition. The exact Forge/Paulscode listening run and human perceptual check both confirm the former ~0.5 s second/richer TNT event is gone.
+- Added deterministic propagation-delay and software-wet activation regressions plus runtime counters for scheduled/resumed/cancelled/forced propagation and late wet fallback.
+- Release cleanup removes the obsolete 1.13.2 diagnostic branch from the 1.12.2 release tree, removes maintainer-specific paths from RFG tooling, makes the exact Kotlin workflow version-agnostic, and adds a repository hygiene gate.
 
 - Reference-Hybrid shaderpack packaging now canonicalizes text line endings before ZIP creation, so Windows CRLF checkout policy cannot make the tracked built-in pack appear stale during the exact release gate; binary shaderpack resources remain byte-preserved.
 - Real Forge projectile gameplay also exposed an event-id vs resolved-filename separator mismatch: the live source identifier is `acousticshaders:sounds/projectile/flight.ogg`, not `projectile.flight`. The built-in source-profile rule now recognizes both forms so the real derived sound receives `acoustic:projectile_flight`, and the physical gameplay probe observes the actual runtime filename instead of silently ignoring a live source.
@@ -47,7 +52,7 @@
 - Added an advanced explosion/projectile x AIR/WATER/LAVA matrix, bringing the current portable suites to 54 headless + 39 advanced tests.
 - Added strict real-SRG compile probes for a real `EntityTippedArrow` gameplay path and five TNT WATER/LAVA scenarios; `dev-verify.sh` requires both whenever the pinned official Minecraft/MCPConfig/Forge inputs are supplied.
 - Removed the historical fixed production-class count from the RFG-reobf-equivalent check. It now requires exact equality with the already verified production class set and requires the new projectile/diagnostic/resources in the audit JAR.
-- Release metadata/tooling now targets `0.3.0-rc20`. RC20 is not declared final until the exact Kotlin 2.4.0 clean release chain and remaining physical client/hardware gates are rerun on this tree.
+- Release metadata/tooling targets `0.3.0-rc20`. The pre-cleanup candidate passed exact Kotlin 2.4.0 A/B packaging, real projectile/TNT-liquid gameplay, physical CUDA-FDTD and physical/perceptual audio gates. The final release tag must rerun the deterministic release chain after cleanup changes rather than inheriting an older verification stamp.
 
 ## 0.3.0-rc19
 

@@ -92,6 +92,8 @@ RC20 — продолжение полностью Kotlin production-ветки:
 7. HIGH + RAY_COMPUTE_BACKEND=AUTO: на NVIDIA ожидается CUDA rays при рабочем NVRTC, иначе OpenCL/CPU.
 8. ULTRA/MAXIMUM + WAVE=FDTD + COMPUTE_BACKEND=AUTO: проверить CUDA FDTD self-test/solves на реальном NVIDIA GPU; heterogeneous water/lava сцены могут корректно уйти на CPU.
 9. Первые секунды входа/телепорта: progressive capture не должен возвращать многосекундный client-thread freeze.
+10. Дальний one-shot источник: первый слышимый фронт должен приходить с физической задержкой распространения (в воздухе ~343 м/с), без отдельного второго более насыщенного onset.
+11. Для полного perceptual-test не заглушай категории Hostile/Neutral/Players: звуки мобов, ударов и обычных entity events тоже должны пройти тот же acoustic path. Музыку/ambient можно временно приглушить отдельно.
 
 Строгий NVIDIA CUDA FDTD gate (не путать с уже подтверждёнными CUDA rays):
 - запусти installer PowerShell с параметром `-CudaFdtdHardwareGate`;

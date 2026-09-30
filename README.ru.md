@@ -2,7 +2,7 @@
 
 **Acoustic Shaders** — открытый фреймворк физической акустики для Minecraft с моделью разработки, похожей на графические shader packs. Пользователь выбирает **Acoustic Shader Pack**, обычные ресурспаки могут задавать акустические свойства материалов и категорий источников, а runtime выполняет выбранный pipeline на CPU, CUDA, OpenCL или безопасном fallback.
 
-Первая целевая версия — **Minecraft 1.12.2 + Forge**. Физическое ядро и API не зависят от Minecraft, чтобы те же Acoustic Shader Packs и базы материалов можно было переносить на современные Forge/Fabric/NeoForge adapters.
+Версия `0.3.0` целенаправленно выпускается для **Minecraft 1.12.2 + Forge 14.23.5.2864**. Физическое ядро и API остаются независимыми от Minecraft, но поддержка более новых версий не входит в scope этого релиза и не заявляется.
 
 **Автор:** Robolightning  
 **Лицензия:** MIT. Разрешено использовать, изменять, распространять, форкать и встраивать проект без ограничений лицензии; программное обеспечение предоставляется без каких-либо гарантий и ответственности. Полный текст — в [`LICENSE`](LICENSE).
@@ -23,10 +23,11 @@ Acoustic Shader отвечает за алгоритм. Обычный Minecraft
 
 ```text
 assets/<namespace>/acoustic_materials/*.json
+assets/<namespace>/acoustic_media/*.json
 assets/<namespace>/acoustic_sources/*.json
 ```
 
-Мод всегда поддерживает нижний автоматически сгенерированный pack **Acoustic Shaders Default Materials**. Он кеширует свойства vanilla/modded block states на основе registry ID, Material/SoundType, OreDictionary, геометрии и консервативных физических эвристик. Пользовательские ресурспаки накладываются поверх него.
+Мод всегда поддерживает нижний автоматически сгенерированный pack **Acoustic Shaders Default Materials**. Он кеширует свойства vanilla/modded block states на основе registry ID, Material/SoundType, OreDictionary, геометрии и консервативных физических эвристик. Объёмные среды (`AIR/WATER/LAVA` и modded fluids) отделены от surface material и могут задавать плотность, скорость звука и 8-полосное поглощение. Пользовательские ресурспаки накладываются поверх сгенерированной базы.
 
 ## Отладка
 

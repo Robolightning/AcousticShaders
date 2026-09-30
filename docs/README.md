@@ -21,7 +21,8 @@ This directory documents the public author/runtime contracts rather than only in
 
 - [`testing.md`](testing.md) — automated and real-client verification.
 - [`debugging.md`](debugging.md) — opt-in developer diagnostics and report logging.
-- [`progress.md`](progress.md) — development status/history until the first stable release.
+- [`progress.md`](progress.md) — current release-candidate status and remaining release work.
+- [`release-process.md`](release-process.md) — final verification, tagging and publication order.
 - [`adr/`](adr/) — Architecture Decision Records.
 
 Detailed runtime diagnostics are opt-in with `debug=true` in `config/acousticshaders/runtime.properties`; normal releases keep only concise lifecycle/status/warning/error messages.

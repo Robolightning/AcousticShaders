@@ -94,8 +94,8 @@
 
     # Runtime regression guard for the exact path shape used by the Windows
     # launcher. This executes before any WSL process is started.
-    $PathSelfTestInput = 'C:\Users\Robolightning\Downloads\AcousticShaders-RFG-WSL-RUN.sh'
-    $PathSelfTestExpected = '/mnt/c/Users/Robolightning/Downloads/AcousticShaders-RFG-WSL-RUN.sh'
+    $PathSelfTestInput = 'C:\Users\ExampleUser\Downloads\AcousticShaders-RFG-WSL-RUN.sh'
+    $PathSelfTestExpected = '/mnt/c/Users/ExampleUser/Downloads/AcousticShaders-RFG-WSL-RUN.sh'
     $PathSelfTestActual = Convert-WindowsPathToWslMount $PathSelfTestInput
     if ($PathSelfTestActual -ne $PathSelfTestExpected) {
         throw "Windows-to-WSL path conversion self-test failed: expected '$PathSelfTestExpected', got '$PathSelfTestActual'"

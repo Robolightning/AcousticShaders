@@ -8,3 +8,13 @@ run/
 # Generated conformance fixtures
 examples/*.zip
 dist/
+
+# Local editor / OS residue
+.DS_Store
+Thumbs.db
+*.bak
+*.orig
+*.rej
+*.tmp
+*~
+.vscode/

@@ -24,12 +24,15 @@ else
   TEST_CP="$OUT/classes"
 fi
 python3 - <<'PYZIP'
-import os,zipfile
-root='examples/reference-pack';out='examples/reference-pack.zip'
-with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED) as z:
-    for base,_,files in os.walk(root):
-        for f in files:
-            p=os.path.join(base,f);z.write(p,os.path.relpath(p,root))
+from pathlib import Path
+import zipfile
+root=Path('examples/reference-pack');out=Path('examples/reference-pack.zip')
+with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+    for p in sorted(x for x in root.rglob('*') if x.is_file()):
+        info=zipfile.ZipInfo(p.relative_to(root).as_posix(),(2026,8,31,20,0,0))
+        info.compress_type=zipfile.ZIP_DEFLATED
+        info.external_attr=0o644<<16
+        z.writestr(info,p.read_bytes())
 PYZIP
 "$KOTLIN_RUNNER" -J-ea -cp "$TEST_CP" dev.acoustic.tests.HeadlessTestSuite
 "$KOTLIN_RUNNER" -J-ea -cp "$TEST_CP" dev.acoustic.tests.AdvancedReleaseTestSuite

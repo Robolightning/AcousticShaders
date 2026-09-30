@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
+./dev-release-hygiene.sh
 # Production implementation is Kotlin-only. Java remains only in test/contract stubs that
 # intentionally model Minecraft/Forge/LWJGL/Paulscode Java APIs.
 PRODUCTION_ROOTS=(

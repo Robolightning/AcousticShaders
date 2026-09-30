@@ -105,13 +105,13 @@ Useful commands:
 ./build-local-release.sh
 ```
 
-Real Minecraft remains the final integration gate for GPU drivers, OpenAL behavior and third-party transformer combinations such as OptiFine/LoliASM-family mods.
+Real Minecraft and physical hardware/device checks are part of release certification, not substitutes for the deterministic local suite. The tracked 1.12.2 candidate has already passed the dedicated projectile, TNT/liquid, CUDA-FDTD and physical-audio gates; any later production change must rerun the relevant gate before release.
 
 ## Compatibility scope
 
 The 1.12.2 implementation is designed to coexist with OptiFine and LoliASM-family/coremod-heavy packs by keeping its Minecraft transformer surface narrow and concentrating audio hooks in Paulscode/Mixin integration. Compatibility must still be verified empirically for each large modpack combination.
 
-The next major development stage is a set of concrete adapters for newer Minecraft versions while retaining the same cross-version Acoustic Shader/resource-data model. That work now starts from an explicit immutable `PlatformFrameSnapshot` plus minimal frame-only `PlatformFrameAdapter`/`PlatformAdapterRuntime` contract, so a modern adapter does not need legacy split-capture methods and cannot silently mix scene, listener and source data from different ticks/worlds. Atomic source snapshots also carry their resolved portable `AcousticSourceProfile`, gain and optional velocity, while listener snapshots carry a normalized forward/up basis plus optional velocity. The generic runtime publishes profile, gain, source/listener motion and listener orientation into typed shader-DAG resources instead of discarding frontend metadata; the original four-argument source and three-argument listener constructors remain compatible and default missing motion to zero, while gain/motion remain metadata rather than a second volume/Doppler application in the RC20 standard path. `AcousticPlatformAdapter` remains as the backward-compatible split-capture bridge; no newer Minecraft version is claimed compatible until its own real client/toolchain gate exists.
+Version `0.3.0` is intentionally scoped to **Minecraft 1.12.2 / Forge 14.23.5.2864**. The portable API keeps a version-neutral `PlatformFrameSnapshot` / `PlatformFrameAdapter` boundary so future adapters can reuse the same acoustic core, but newer Minecraft versions are explicitly out of scope for this release and are not claimed compatible.
 
 ## Real Forge 1.12.2 client gate
 
