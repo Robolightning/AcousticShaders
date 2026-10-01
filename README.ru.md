@@ -39,20 +39,10 @@ debug=true
 
 в `.minecraft/config/acousticshaders/runtime.properties`.
 
-Тогда появятся подробные timings, GPU diagnostics, path thickness/transmission, source profiles и медленные shader passes. Test harness включает этот режим автоматически при сборе отчётов.
+Тогда появятся подробные timings, GPU diagnostics, path thickness/transmission, source profiles и медленные shader passes. Внутренние validation-инструменты включают этот режим только при диагностике.
 
 ## Документация
 
 Оглавление: [`docs/README.md`](docs/README.md). Спецификация: [`spec/acoustic-shader-spec-0.3.md`](spec/acoustic-shader-spec-0.3.md).
 
-## Реальный Forge 1.12.2 client gate
-
-Для целевого Forge `14.23.5.2864` есть отдельный официальный-binary preflight:
-
-```bash
-ACOUSTIC_FORGE1122_BUNDLE=/path/to/forge.tar.xz ./tools/verification/1.12.2/scripts/dev-forge1122-client-preflight.sh
-```
-
-Он проверяет exact installer/MDK/universal, SHA/embedded JAR, LaunchWrapper/FMLTweaker metadata и настоящий Forge event/GUI ABI. Если дополнительно задан `ACOUSTIC_MC1122_HOME` с полным launcher runtime Minecraft 1.12.2, gate проверяет checksum каждого выбранного Windows library/native artifact и строит точный client classpath.
-
-`tools/verification/1.12.2/scripts/dev-forge1122-client-launch.sh` — следующий аппаратно-независимый уровень: при наличии полного launcher runtime, WinLab, Windows Java 8, MixinBooter 11.15 и Forgelin-Continuous 2.4.0.0 он запускает настоящий `net.minecraft.launchwrapper.Launch`/`FMLTweaker` и требует достижения FML initialization. Отсутствующий vanilla/library artifact считается внешним runtime gap и выводится отдельным списком, а не маскируется contract stubs.
+Подробные процедуры проверки Forge/SRG/WinLab для 1.12.2 находятся в [`docs/testing.md`](docs/testing.md) и [`docs/minecraft-1.12.2-integration.md`](docs/minecraft-1.12.2-integration.md).
