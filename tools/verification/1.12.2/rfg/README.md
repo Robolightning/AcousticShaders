@@ -74,15 +74,15 @@ Plugin Portal and Maven Central for Mercury, the workspace is stale and predates
 
 The repository now has a strict transfer format for moving a previously warmed, known-good RFG environment
 into a network-isolated machine without treating an arbitrary Gradle cache as provenance. On the online/WSL
-machine, `../dev-rfg-buildenv-pack.sh` requires the official Gradle 8.14.3 ZIP with SHA-256
+machine, `../tools/verification/1.12.2/scripts/dev-rfg-buildenv-pack.sh` requires the official Gradle 8.14.3 ZIP with SHA-256
 `bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531`, a clean RFG checkout exactly at
 `94702da47e2c0d626986a42bd8124c63e52afc2a`, `caches/modules-2`, `caches/retro_futura_gradle`, and a
 Gradle-managed Java 8 toolchain under `~/.gradle/jdks`. It stores RFG as a Git bundle and covers every
 payload file/symlink with a SHA-256 manifest.
 
-On the isolated machine, `../dev-rfg-buildenv-import.sh <bundle.tar.zst>` validates the payload manifest and
+On the isolated machine, `../tools/verification/1.12.2/scripts/dev-rfg-buildenv-import.sh <bundle.tar.zst>` validates the payload manifest and
 pinned metadata, reconstructs `out/rfg-local/{gradle-8.14.3,RetroFuturaGradle-1.4.9,gradle-user-home}`, and
-runs `../dev-rfg-local-runner.sh --preflight-only`. The normal runner additionally requires bootstrap Java
+runs `../tools/verification/1.12.2/scripts/dev-rfg-local-runner.sh --preflight-only`. The normal runner additionally requires bootstrap Java
 17 and exact Kotlin 2.4.0, then runs `rfgReleaseGate` with `--offline`. This format deliberately does not
 claim a successful RFG build merely because a cache was imported; only the subsequent Gradle task can close
 formal RFG provenance.

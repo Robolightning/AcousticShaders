@@ -44,7 +44,7 @@
 - Extended Forge-fluid discovery to `IFluidBlock` and `FluidRegistry.lookupFluidForBlock`, including stable `forge-fluid:<name>` identities, `MEDIUM_ID` overrides and top-down geometry for Forge's negative gaseous fill convention.
 - Strengthened Acoustic Shader Pack hot reload for directory and ZIP packs: an invalid edit retains the last-good runtime and a later valid edit atomically replaces it.
 - Added an advanced explosion/projectile x AIR/WATER/LAVA matrix, bringing the current portable suites to 54 headless + 39 advanced tests.
-- Added strict real-SRG compile probes for a real `EntityTippedArrow` gameplay path and five TNT WATER/LAVA scenarios; `dev-verify.sh` requires both whenever the pinned official Minecraft/MCPConfig/Forge inputs are supplied.
+- Added strict real-SRG compile probes for a real `EntityTippedArrow` gameplay path and five TNT WATER/LAVA scenarios; `tools/verification/1.12.2/scripts/dev-verify.sh` requires both whenever the pinned official Minecraft/MCPConfig/Forge inputs are supplied.
 - Removed the historical fixed production-class count from the RFG-reobf-equivalent check. It now requires exact equality with the already verified production class set and requires the new projectile/diagnostic/resources in the audit JAR.
 - Release metadata/tooling targets `0.3.0-rc20`. The pre-cleanup candidate passed exact Kotlin 2.4.0 A/B packaging, real projectile/TNT-liquid gameplay, physical CUDA-FDTD and physical/perceptual audio gates. The final release tag must rerun the deterministic release chain after cleanup changes rather than inheriting an older verification stamp.
 

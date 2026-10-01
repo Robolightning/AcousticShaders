@@ -8,7 +8,7 @@ JAR="$DIST/acoustic-shaders-mc1122-$VERSION.jar"
 STAMP="$OUT/release-verification.stamp"
 cd "$ROOT"
 
-test -s "$STAMP" || { echo "ERROR: verification stamp missing; run dev-verify.sh first" >&2; exit 1; }
+test -s "$STAMP" || { echo "ERROR: verification stamp missing; run ./verify.sh first" >&2; exit 1; }
 STAMP_HEAD="$(sed -n 's/^head=//p' "$STAMP")"
 STAMP_KOTLIN="$(sed -n 's/^kotlin=//p' "$STAMP")"
 STAMP_INPUTS="$(sed -n 's/^inputs=//p' "$STAMP")"
@@ -29,7 +29,7 @@ for lib in kotlin-stdlib.jar kotlin-stdlib-jdk7.jar kotlin-stdlib-jdk8.jar; do t
 
 test -d "$OUT/forge-classes" || { echo "ERROR: verified production classes missing" >&2; exit 1; }
 test -d "$OUT/forge-stubs" || { echo "ERROR: verified Forge stubs missing" >&2; exit 1; }
-test -f "$OUT/shaderpacks/AcousticShaders-Reference-Hybrid.zip" || ./dev-build-shaderpacks.sh >/dev/null
+test -f "$OUT/shaderpacks/AcousticShaders-Reference-Hybrid.zip" || ./tools/verification/1.12.2/scripts/dev-build-shaderpacks.sh >/dev/null
 rm -rf "$DIST" "$OUT/release-resources" "$OUT/runtime-smoke" "$OUT/srg-gui-smoke" "$OUT/srg-gui-smoke-work"
 mkdir -p "$DIST" "$OUT/release-resources" "$OUT/runtime-smoke" "$OUT/srg-gui-smoke" "$OUT/srg-gui-smoke-work"
 cp -a "$ROOT/minecraft-1.12.2/src/forge/resources/." "$OUT/release-resources/"

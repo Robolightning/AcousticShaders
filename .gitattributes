@@ -9,3 +9,10 @@
 *.gz binary
 *.zst binary
 *.xz binary
+
+# Verification harnesses and external API contract stubs are not production-language statistics.
+tools/verification/** linguist-vendored
+minecraft-1.12.2/compile-stubs/** linguist-vendored
+minecraft-1.12.2/runtime-smoke/src/main/java/net/** linguist-vendored
+minecraft-1.12.2/runtime-smoke/src/main/java/org/** linguist-vendored
+minecraft-1.12.2/srg-gui-smoke/src/main/java/net/** linguist-vendored

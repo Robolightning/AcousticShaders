@@ -50,9 +50,9 @@ debug=true
 Для целевого Forge `14.23.5.2864` есть отдельный официальный-binary preflight:
 
 ```bash
-ACOUSTIC_FORGE1122_BUNDLE=/path/to/forge.tar.xz ./dev-forge1122-client-preflight.sh
+ACOUSTIC_FORGE1122_BUNDLE=/path/to/forge.tar.xz ./tools/verification/1.12.2/scripts/dev-forge1122-client-preflight.sh
 ```
 
 Он проверяет exact installer/MDK/universal, SHA/embedded JAR, LaunchWrapper/FMLTweaker metadata и настоящий Forge event/GUI ABI. Если дополнительно задан `ACOUSTIC_MC1122_HOME` с полным launcher runtime Minecraft 1.12.2, gate проверяет checksum каждого выбранного Windows library/native artifact и строит точный client classpath.
 
-`dev-forge1122-client-launch.sh` — следующий аппаратно-независимый уровень: при наличии полного launcher runtime, WinLab, Windows Java 8, MixinBooter 11.15 и Forgelin-Continuous 2.4.0.0 он запускает настоящий `net.minecraft.launchwrapper.Launch`/`FMLTweaker` и требует достижения FML initialization. Отсутствующий vanilla/library artifact считается внешним runtime gap и выводится отдельным списком, а не маскируется contract stubs.
+`tools/verification/1.12.2/scripts/dev-forge1122-client-launch.sh` — следующий аппаратно-независимый уровень: при наличии полного launcher runtime, WinLab, Windows Java 8, MixinBooter 11.15 и Forgelin-Continuous 2.4.0.0 он запускает настоящий `net.minecraft.launchwrapper.Launch`/`FMLTweaker` и требует достижения FML initialization. Отсутствующий vanilla/library artifact считается внешним runtime gap и выводится отдельным списком, а не маскируется contract stubs.

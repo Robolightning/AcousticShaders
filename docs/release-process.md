@@ -13,7 +13,7 @@ Acoustic Shaders release artifacts are promoted from one verified Git commit. Do
 
 ## 2. Verify
 
-Run the repository hygiene gate and `./dev-verify.sh`. In the exact Windows/toolchain environment, repeat independent A/B builds and require byte-identical JAR, source snapshot and ALL-IN-ONE. Verify the final packaged JAR, Java-8 classfile ceiling, Mixin retention, real-SRG references and archive checksums.
+Run the repository hygiene gate and `./verify.sh`. In the exact Windows/toolchain environment, repeat independent A/B builds and require byte-identical JAR, source snapshot and ALL-IN-ONE. Verify the final packaged JAR, Java-8 classfile ceiling, Mixin retention, real-SRG references and archive checksums.
 
 Production behavior changed after the last hardware/perceptual certification only if the final diff touches runtime/physics/audio/native paths. In that case rerun the relevant real-client/hardware gate before tagging.
 

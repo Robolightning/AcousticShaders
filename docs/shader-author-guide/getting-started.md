@@ -52,7 +52,7 @@ The bundled Reference Acoustic Shader is selected on a fresh 1.12.2 configuratio
 ## Validate without Minecraft
 
 ```bash
-./dev-conformance.sh path/to/MyPack out/my-pack-conformance
+./tools/verification/1.12.2/scripts/dev-conformance.sh path/to/MyPack out/my-pack-conformance
 ```
 
 The tool validates and runs every preset in a deterministic room and emits `*-rir.wav`, `*-timings.txt` and `*-pipeline.dot`.

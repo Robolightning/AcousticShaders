@@ -100,9 +100,9 @@ The portable modules target Java 8. Local verification is intentionally independ
 Useful commands:
 
 ```bash
-./dev-verify.sh
-./dev-conformance.sh
-./dev-benchmark.sh
+./verify.sh
+./tools/verification/1.12.2/scripts/dev-conformance.sh
+./benchmark.sh
 ./build-local-release.sh
 ```
 
@@ -119,8 +119,8 @@ Version `0.3.0` is intentionally scoped to **Minecraft 1.12.2 / Forge 14.23.5.28
 The exact Forge `14.23.5.2864` installer/MDK/universal bundle can be audited with:
 
 ```bash
-ACOUSTIC_FORGE1122_BUNDLE=/path/to/forge.tar.xz ./dev-forge1122-client-preflight.sh
+ACOUSTIC_FORGE1122_BUNDLE=/path/to/forge.tar.xz ./tools/verification/1.12.2/scripts/dev-forge1122-client-preflight.sh
 ```
 
-With `ACOUSTIC_MC1122_HOME` set to a complete launcher installation, the same gate verifies the official 1.12.2 client JAR, selected Windows libraries, native classifiers, asset index/objects, and builds the exact LaunchWrapper classpath. `dev-forge1122-client-launch.sh` then uses WinLab + Windows Java 8 + MixinBooter 11.15 + Forgelin-Continuous 2.4.0.0 to start the real `net.minecraft.launchwrapper.Launch`/`FMLTweaker` path. Missing launcher artifacts are reported as an external runtime gap rather than hidden behind stubs. The Windows helper `tools/verification/1.12.2/windows/Collect-Forge1122-ClientDeps.ps1` can assemble only the exact Forge-side Maven libraries plus MixinBooter/Forgelin into a small checksum-manifested incremental ZIP, without duplicating vanilla assets. `dev-vanilla1122-winlab-client.sh` is the preceding graphics/runtime gate: it launches the official vanilla 1.12.2 client through WinLab/Windows Java 8, validates all Windows library/native SHA-1 values and assets, and requires LWJGL/resource/texture-atlas initialization before Forge is introduced. The canonical 22-byte Mojang LWJGL platform marker is reconstructed locally when a launcher installation omits that empty artifact.
- The Forge launcher supports bounded `init` and `full` levels via `ACOUSTIC_CLIENT_BOOT_LEVEL`; `full` requires postInit/material-database completion and FML-complete. `ACOUSTIC_CLIENT_NULL_AUDIO=1` uses OpenAL Soft's null backend but still requires the real Minecraft sound engine to report `OpenAL initialized` and `Sound engine started`. The launcher uses an isolated Xvfb display and game-directory cwd, a monotonic Python supervisor plus an outer wall-clock timeout, and bounded cleanup so a Wine lifecycle quirk cannot hold the release shell open. Set `ACOUSTIC_FORGE1122_CLIENT_GATE=1` to opt this real-client gate into `dev-verify.sh`.
+With `ACOUSTIC_MC1122_HOME` set to a complete launcher installation, the same gate verifies the official 1.12.2 client JAR, selected Windows libraries, native classifiers, asset index/objects, and builds the exact LaunchWrapper classpath. `tools/verification/1.12.2/scripts/dev-forge1122-client-launch.sh` then uses WinLab + Windows Java 8 + MixinBooter 11.15 + Forgelin-Continuous 2.4.0.0 to start the real `net.minecraft.launchwrapper.Launch`/`FMLTweaker` path. Missing launcher artifacts are reported as an external runtime gap rather than hidden behind stubs. The Windows helper `tools/verification/1.12.2/windows/Collect-Forge1122-ClientDeps.ps1` can assemble only the exact Forge-side Maven libraries plus MixinBooter/Forgelin into a small checksum-manifested incremental ZIP, without duplicating vanilla assets. `tools/verification/1.12.2/scripts/dev-vanilla1122-winlab-client.sh` is the preceding graphics/runtime gate: it launches the official vanilla 1.12.2 client through WinLab/Windows Java 8, validates all Windows library/native SHA-1 values and assets, and requires LWJGL/resource/texture-atlas initialization before Forge is introduced. The canonical 22-byte Mojang LWJGL platform marker is reconstructed locally when a launcher installation omits that empty artifact.
+ The Forge launcher supports bounded `init` and `full` levels via `ACOUSTIC_CLIENT_BOOT_LEVEL`; `full` requires postInit/material-database completion and FML-complete. `ACOUSTIC_CLIENT_NULL_AUDIO=1` uses OpenAL Soft's null backend but still requires the real Minecraft sound engine to report `OpenAL initialized` and `Sound engine started`. The launcher uses an isolated Xvfb display and game-directory cwd, a monotonic Python supervisor plus an outer wall-clock timeout, and bounded cleanup so a Wine lifecycle quirk cannot hold the release shell open. Set `ACOUSTIC_FORGE1122_CLIENT_GATE=1` to opt this real-client gate into `tools/verification/1.12.2/scripts/dev-verify.sh`.

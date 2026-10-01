@@ -224,7 +224,7 @@ if [[ -f "$MC_CLIENT" && -f "$MCP_CONFIG" && -f "$FORGE_UNIVERSAL" ]]; then
       ACOUSTIC_MCP_CONFIG_1122="$MCP_CONFIG" \
       ACOUSTIC_FORGE_1122_UNIVERSAL="$FORGE_UNIVERSAL" \
       ACOUSTIC_FORGE_1122_INSTALLER="$FORGE_INSTALLER" \
-      "$ROOT/dev-real-srg-bytecode-audit.sh" "$AUDIT_CLASSES"
+      "$ROOT/tools/verification/1.12.2/scripts/dev-real-srg-bytecode-audit.sh" "$AUDIT_CLASSES"
   } 2>&1 | tee "$RESULT_DIR/real-srg-rfg-bytecode-audit.log"
 else
   echo 'Official local Minecraft/MCP/Forge artifacts not found; RFG binary-reference cross-audit skipped.' \

@@ -7,5 +7,5 @@ if [[ -n "${ACOUSTIC_KOTLINC:-}" && -z "${ACOUSTIC_KOTLIN:-}" ]]; then
   export ACOUSTIC_KOTLIN="$(dirname "$ACOUSTIC_KOTLINC")/kotlin"
 fi
 printf 'Release gate requires Kotlin %s\n' "$ACOUSTIC_REQUIRE_KOTLIN_VERSION"
-./dev-verify.sh
+./verify.sh
 ./package-local-release.sh

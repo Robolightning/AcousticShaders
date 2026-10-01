@@ -25,7 +25,7 @@ The project is in **final release hardening**, not feature development. Cleanup 
 Before the final `0.3.0` tag, the final cleanup HEAD must pass again:
 
 1. repository hygiene and shell/source syntax checks;
-2. `./dev-verify.sh` on a clean tree;
+2. `./verify.sh` on a clean tree;
 3. exact Kotlin 2.4.0 A/B build and deterministic packaging;
 4. official 1.12.2 real-SRG/RFG-equivalent gates;
 5. packaged-JAR smoke tests and release archive integrity;
