@@ -60,50 +60,6 @@ with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
     for p in sorted(x for x in root.rglob('*') if x.is_file()):
         i=zipfile.ZipInfo(p.relative_to(root).as_posix(),(2026,8,31,20,0,0));i.compress_type=zipfile.ZIP_DEFLATED;i.external_attr=0o644<<16;z.writestr(i,p.read_bytes())
 PYDATA
-cp "$ROOT/tools/verification/1.12.2/windows/Install-And-Test-AcousticShaders-1.12.2.ps1" "$DIST/Install-And-Test-AcousticShaders-1.12.2.ps1"
-cat > "$DIST/FIRST-TEST-RU.txt" <<'TXT'
-Acoustic Shaders 0.3.0 — Minecraft 1.12.2
-
-Обязательные зависимости:
-- Forge 14.23.5.2864;
-- MixinBooter 11.15;
-- Forgelin-Continuous 2.4.0.0+ (обычный старый Forgelin одновременно не устанавливать).
-
-Финальный релиз использует полностью Kotlin production-ветку: entity-derived projectile flight emitters, finite speed-of-sound delay, direct-path diagnostics, универсальные Forge-fluid media, transactional custom-shader hot reload, progressive world capture, CUDA -> OpenCL -> CPU fallback и полный live Acoustic Shader DAG. Reference Acoustic Shader сохраняет POTATO / LOW / MEDIUM / HIGH / ULTRA / MAXIMUM.
-
-Новая жидкостная акустика:
-- AIR / WATER / LAVA и modded `acoustic_media`;
-- отдельная объёмная среда, независимая от surface material;
-- скорость звука, плотность, 8-band bulk attenuation;
-- impedance reflection/transmission и Snell/Fermat refraction;
-- air -> water -> air, подводные отражения и heterogeneous FDTD;
-- flowing/partial fill, subvoxel sampling, непрерывные вертикальные столбы;
-- neighbor-aware bilinear free surface без дополнительных live World reads;
-- Resource Pack `assets/<namespace>/acoustic_media/**/*.json` и shader-pack `media/*.json` hot reload;
-- heterogeneous FDTD пока намеренно уходит с текущих homogeneous GPU kernels на CPU, чтобы не считать воду неверно.
-
-Что особенно проверить:
-1. Открытое поле -> лес -> маленькая каменная комната -> большая пещера.
-2. Источник за стеной/углом и partial blocks: slab/pane/fence/iron bars/stairs.
-3. TNT/взрыв, projectile/impact и moving sound/Doppler.
-4. Войти в воду целиком: голос/шаги/взрывы снаружи и внутри воды, переход через поверхность, задержка/окраска/направление.
-5. Стоять головой около поверхности и перемещаться по flowing water: не должно быть резких block-step скачков или внутренних «зеркал» между соседними water voxels.
-6. Лава и modded fluids: medium identity не должна превращаться в surface material; кастомные acoustic_media overrides должны hot-reload.
-7. HIGH + RAY_COMPUTE_BACKEND=AUTO: на NVIDIA ожидается CUDA rays при рабочем NVRTC, иначе OpenCL/CPU.
-8. ULTRA/MAXIMUM + WAVE=FDTD + COMPUTE_BACKEND=AUTO: проверить CUDA FDTD self-test/solves на реальном NVIDIA GPU; heterogeneous water/lava сцены могут корректно уйти на CPU.
-9. Первые секунды входа/телепорта: progressive capture не должен возвращать многосекундный client-thread freeze.
-10. Дальний one-shot источник: первый слышимый фронт должен приходить с физической задержкой распространения (в воздухе ~343 м/с), без отдельного второго более насыщенного onset.
-11. Для полного perceptual-test не заглушай категории Hostile/Neutral/Players: звуки мобов, ударов и обычных entity events тоже должны пройти тот же acoustic path. Музыку/ambient можно временно приглушить отдельно.
-
-Строгий NVIDIA CUDA FDTD gate (не путать с уже подтверждёнными CUDA rays):
-- запусти installer PowerShell с параметром `-CudaFdtdHardwareGate`;
-- он временно выставит MAXIMUM + `COMPUTE_BACKEND=CUDA`, а rays принудительно оставит `CPU_PARALLEL`;
-- после входа в обычный мир подожди завершения первичного capture, взорви TNT/создай другой spatial sound, поиграй ещё ~30 секунд и нормально закрой Minecraft;
-- в `RESULT.txt` нужен `CudaFdtdHardwareGatePassed=True`; gate принимает только wave telemetry `cuda avail=true`, `solves>0`, `failures=0`, `self-test=pass`.
-
-Тестовый installer включает debug=true и после закрытия Minecraft собирает AcousticShaders-TestReport-*.zip.
-TXT
-
 unzip -t "$JAR" >/dev/null
 for entry in \
   dev/acoustic/mc1122/forge/AcousticShadersForgeMod.class \
@@ -184,7 +140,7 @@ javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$JAR:$KOTLIN
 
 (
   cd "$DIST"
-  sha256sum "acoustic-shaders-mc1122-$VERSION.jar" AcousticShaders-Reference-Hybrid.zip AcousticData-Example-ResourcePack.zip Install-And-Test-AcousticShaders-1.12.2.ps1 FIRST-TEST-RU.txt > SHA256SUMS.txt
+  sha256sum "acoustic-shaders-mc1122-$VERSION.jar" AcousticShaders-Reference-Hybrid.zip AcousticData-Example-ResourcePack.zip > SHA256SUMS.txt
 )
 SOURCE="$DIST/acoustic-shaders-source-$VERSION.tar.gz"
 tar --sort=name --mtime='2026-08-31 20:00:00 UTC' --owner=0 --group=0 --numeric-owner -czf "$SOURCE" \
@@ -194,7 +150,7 @@ python3 - "$DIST" "$VERSION" <<'PYBUNDLE'
 from pathlib import Path
 import sys,zipfile
 root=Path(sys.argv[1]);v=sys.argv[2];out=root/f'AcousticShaders-mc1122-{v}-ALL-IN-ONE.zip'
-names=[f'acoustic-shaders-mc1122-{v}.jar','AcousticShaders-Reference-Hybrid.zip','AcousticData-Example-ResourcePack.zip','Install-And-Test-AcousticShaders-1.12.2.ps1','FIRST-TEST-RU.txt','SHA256SUMS.txt',f'acoustic-shaders-source-{v}.tar.gz']
+names=[f'acoustic-shaders-mc1122-{v}.jar','AcousticShaders-Reference-Hybrid.zip','AcousticData-Example-ResourcePack.zip','SHA256SUMS.txt',f'acoustic-shaders-source-{v}.tar.gz']
 project=root.parent
 with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
     def put(name,data):

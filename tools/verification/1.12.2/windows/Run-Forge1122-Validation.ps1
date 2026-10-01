@@ -1,5 +1,5 @@
-# Acoustic Shaders - Minecraft 1.12.2 Forge install + test harness (Kotlin/Forgelin-Continuous migration)
-# PowerShell 5.1+ / Windows 10-11. This script is intended to live INSIDE the TEST-BUNDLE.
+# Acoustic Shaders - Minecraft 1.12.2 Windows/Forge validation harness
+# PowerShell 5.1+ / Windows 10-11. Maintainer verification tool; not part of the public release package.
 param(
     [string]$BundleRoot = $PSScriptRoot,
     [switch]$CudaFdtdHardwareGate

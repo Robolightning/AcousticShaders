@@ -58,13 +58,13 @@ printf '%s\n' '[WinLab] bundled PowerShell availability'
 run_probe 'WinLab PowerShell' 25 "$OUT/powershell-version.log" \
   "$RUN" pwsh -NoLogo -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString()'
 
-INSTALLER="$ROOT/tools/verification/1.12.2/windows/Install-And-Test-AcousticShaders-1.12.2.ps1"
+INSTALLER="$ROOT/tools/verification/1.12.2/windows/Run-Forge1122-Validation.ps1"
 [[ -s "$INSTALLER" ]] || { echo "ERROR: installer missing: $INSTALLER" >&2; exit 1; }
 if grep -F '$ForgelinContinuousVersion:' "$INSTALLER" >/dev/null; then
   echo 'ERROR: ambiguous PowerShell variable interpolation returned: use ${ForgelinContinuousVersion} before a colon' >&2
   exit 1
 fi
-printf '%s\n' '[WinLab] PowerShell AST parse of shipped installer'
+printf '%s\n' '[WinLab] PowerShell AST parse of Windows validation harness'
 run_probe 'PowerShell AST parser' 30 "$OUT/powershell-ast.log" \
   env ACOUSTIC_INSTALLER_PATH="$INSTALLER" \
   "$RUN" pwsh -NoLogo -NoProfile -NonInteractive -Command \
@@ -82,7 +82,7 @@ for token in \
     exit 1
   }
 done
-printf '%s\n' '[PASS] Windows installer exposes strict CUDA FDTD hardware mode without CUDA-ray false positives'
+printf '%s\n' '[PASS] Windows validation harness exposes strict CUDA FDTD hardware mode without CUDA-ray false positives'
 
 RFG_WINDOWS_LAUNCHER="$ROOT/tools/verification/1.12.2/rfg/run-rfg-gate-windows.ps1"
 [[ -s "$RFG_WINDOWS_LAUNCHER" ]] || { echo "ERROR: Windows RFG launcher missing: $RFG_WINDOWS_LAUNCHER" >&2; exit 1; }
