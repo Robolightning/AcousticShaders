@@ -29,7 +29,7 @@ for token in ('subprocess.Popen(', 'pid_path.write_text(str(proc.pid)'):
     if token not in launch:
         raise SystemExit(f'ERROR: Python client supervisor contract missing {token!r}')
 
-probe=pathlib.Path('dev-tools/RealMinecraftSoundEventProbeMod.java').read_text()
+probe=pathlib.Path('tools/verification/1.12.2/dev-tools/RealMinecraftSoundEventProbeMod.java').read_text()
 for token in (
     'required-after:acousticshaders', 'clientSideOnly = true', 'block.note.harp', 'AttenuationType',
     'func_147682_a', 'func_147683_b', 'ACOUSTIC-REAL-MINECRAFT-SOUND-EVENT-OK',
@@ -43,7 +43,7 @@ for token in ('--release 8', '-Werror', 'ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT=9',
     if token not in post:
         raise SystemExit(f'ERROR: post-package real Minecraft sound-event gate missing {token!r}')
 
-world_probe=pathlib.Path('dev-tools/RealMinecraftWorldSoundEventProbeMod.java').read_text()
+world_probe=pathlib.Path('tools/verification/1.12.2/dev-tools/RealMinecraftWorldSoundEventProbeMod.java').read_text()
 for token in (
     'required-after:acousticshaders', 'clientSideOnly = true', 'func_71371_a', 'func_71401_C',
     'func_152344_a', 'func_184148_a', 'field_73010_i', 'Server thread', 'block.note.harp',
@@ -59,7 +59,7 @@ for token in ('--release 8', '-Werror', 'ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT=9',
         raise SystemExit(f'ERROR: post-package integrated-world sound-event gate missing {token!r}')
 
 
-gameplay_probe=pathlib.Path('dev-tools/RealMinecraftGameplaySoundEventProbeMod.java').read_text()
+gameplay_probe=pathlib.Path('tools/verification/1.12.2/dev-tools/RealMinecraftGameplaySoundEventProbeMod.java').read_text()
 for token in (
     'required-after:acousticshaders', 'clientSideOnly = true', 'EntityTNTPrimed', 'func_184534_a(2)',
     'func_72838_d(tnt)', 'Server thread', 'explode', 'LegacySoundHook', 'activeSources',
@@ -76,7 +76,7 @@ for token in ('--release 8', '-Werror', 'ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT=9',
     if token not in gameplay_post:
         raise SystemExit(f'ERROR: post-package vanilla gameplay sound-event gate missing {token!r}')
 
-projectile_probe=pathlib.Path('dev-tools/RealMinecraftProjectileGameplayProbeMod.java').read_text()
+projectile_probe=pathlib.Path('tools/verification/1.12.2/dev-tools/RealMinecraftProjectileGameplayProbeMod.java').read_text()
 for token in (
     'required-after:acousticshaders', 'clientSideOnly = true', 'EntityTippedArrow', 'projectile.flight',
     'acousticshaders.probe.directPath', 'LegacyDirectPathDiagnostic', 'activeSources',
@@ -91,7 +91,7 @@ for token in ('--release 8', '-Werror', 'ACOUSTIC_CLIENT_EXPECTED_MOD_COUNT=9',
     if token not in projectile_post:
         raise SystemExit(f'ERROR: post-package projectile gameplay gate missing {token!r}')
 
-liquid_probe=pathlib.Path('dev-tools/RealMinecraftLiquidTntGameplayProbeMod.java').read_text()
+liquid_probe=pathlib.Path('tools/verification/1.12.2/dev-tools/RealMinecraftLiquidTntGameplayProbeMod.java').read_text()
 for token in (
     'required-after:acousticshaders', 'clientSideOnly = true', 'EntityTNTPrimed',
     'acousticshaders.probe.directPath', 'LegacyDirectPathDiagnostic', 'field_150355_j', 'field_150353_l',

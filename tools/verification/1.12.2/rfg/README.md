@@ -25,7 +25,7 @@ collapsed into one version.
 The authoritative source has dual MCP/SRG GUI entry points because the custom release pipeline is
 already SRG-facing. A normal RFG build compiles against MCP names and then reobfuscates them to
 SRG, so compiling those dual methods verbatim would create duplicate methods. The build therefore
-uses `dev-tools/prepare-rfg-kotlin-source.py` to create a temporary MCP-only GUI view. No production
+uses `tools/verification/1.12.2/dev-tools/prepare-rfg-kotlin-source.py` to create a temporary MCP-only GUI view. No production
 source file is modified.
 
 `compileAcousticKotlin` keeps `-Werror` enabled, but filters non-existent filesystem entries from
@@ -39,16 +39,16 @@ On the user's WSL, with the previously verified Kotlin 2.4.0 distribution still 
 `~/acoustic-kotlin-2.4/extracted/kotlinc`, run:
 
 ```bash
-./rfg-1.12.2/bootstrap-wsl.sh
+./tools/verification/1.12.2/rfg/bootstrap-wsl.sh
 ```
 
 The final integration artifact is expected at:
 
-`rfg-1.12.2/build/libs/acoustic-shaders-mc1122-0.3.0.jar`
+`tools/verification/1.12.2/rfg/build/libs/acoustic-shaders-mc1122-0.3.0.jar`
 
-If an older WSL run left `~/acoustic-rfg-1.12.2/RetroFuturaGradle-1.4.9-forge2864`, the bootstrap reuses its local Git objects to create the new clean `RetroFuturaGradle-1.4.9` checkout. It does not modify or trust the old worktree, so the obsolete uncommitted 2847→2864 patch cannot leak into the corrected userdev/tooling path.
+If an older WSL run left `~/acoustic-tools/verification/1.12.2/rfg/RetroFuturaGradle-1.4.9-forge2864`, the bootstrap reuses its local Git objects to create the new clean `RetroFuturaGradle-1.4.9` checkout. It does not modify or trust the old worktree, so the obsolete uncommitted 2847→2864 patch cannot leak into the corrected userdev/tooling path.
 
-On WSL the bootstrap also writes `~/acoustic-rfg-1.12.2/AcousticShaders-RFG-1.12.2-Result.zip` containing the reobfuscated JAR, full gate log and SHA-256/toolchain report. The report records the split explicitly as `tooling/userdev=2847` and `runtime/universal=2864`. When Windows interop is available it copies that result ZIP into the user's Windows `Downloads` directory automatically. On failure it copies `AcousticShaders-RFG-FAILED.log` there instead.
+On WSL the bootstrap also writes `~/acoustic-tools/verification/1.12.2/rfg/AcousticShaders-RFG-1.12.2-Result.zip` containing the reobfuscated JAR, full gate log and SHA-256/toolchain report. The report records the split explicitly as `tooling/userdev=2847` and `runtime/universal=2864`. When Windows interop is available it copies that result ZIP into the user's Windows `Downloads` directory automatically. On failure it copies `AcousticShaders-RFG-FAILED.log` there instead.
 If the already verified Minecraft 1.12.2 client, MCPConfig, Forge universal and installer files are present in Windows `Downloads`, the bootstrap also SHA-checks them and runs the project's official-binary SRG bytecode-reference audit against the **reobfuscated RFG JAR itself**; its log is included in the result ZIP.
 
 `verifyReobfAcousticJar` checks required entries, Java-8 classfile versions, Mixin manifest metadata,

@@ -12,7 +12,7 @@ base {
     archivesName = 'acoustic-shaders-mc1122'
 }
 
-def projectRoot = rootProject.projectDir.parentFile.canonicalFile
+def projectRoot = rootProject.projectDir.parentFile.parentFile.parentFile.parentFile.canonicalFile
 def kotlinHomeValue = System.getenv('ACOUSTIC_KOTLIN_HOME') ?: findProperty('acousticKotlinHome')
 if (kotlinHomeValue == null || kotlinHomeValue.toString().trim().isEmpty()) {
     throw new GradleException('ACOUSTIC_KOTLIN_HOME (or -PacousticKotlinHome=...) must point to the official Kotlin 2.4.0 kotlinc directory')
@@ -153,10 +153,10 @@ tasks.register('verifyExactKotlin') {
 tasks.register('prepareAcousticRfgKotlinSource', Exec) {
     group = 'build setup'
     inputs.files(productionRoots.collect { fileTree(it) { include '**/*.kt' } })
-    inputs.file(new File(projectRoot, 'dev-tools/prepare-rfg-kotlin-source.py'))
+    inputs.file(new File(projectRoot, 'tools/verification/1.12.2/dev-tools/prepare-rfg-kotlin-source.py'))
     outputs.dir(generatedKotlinRoot)
     commandLine 'python3',
-        new File(projectRoot, 'dev-tools/prepare-rfg-kotlin-source.py').absolutePath,
+        new File(projectRoot, 'tools/verification/1.12.2/dev-tools/prepare-rfg-kotlin-source.py').absolutePath,
         '--root', projectRoot.absolutePath,
         '--out', generatedKotlinRoot.get().asFile.absolutePath
 }
@@ -294,7 +294,7 @@ tasks.register('verifyReobfAcousticJar') {
 
         exec {
             commandLine 'python3',
-                new File(projectRoot, 'dev-tools/verify-rfg-reobf-jar.py').absolutePath,
+                new File(projectRoot, 'tools/verification/1.12.2/dev-tools/verify-rfg-reobf-jar.py').absolutePath,
                 jarFile.absolutePath
         }
 

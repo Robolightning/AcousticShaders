@@ -13,14 +13,14 @@ FORGE_SHA1=$(sha1sum "$ACOUSTIC_FORGE_1122_UNIVERSAL"|awk '{print $1}')
 [[ "$MCP_SHA1" == 72e1b936f56e0dd394c64caf9c86af01f64dc979 ]] || { echo "ERROR: unexpected MCPConfig SHA-1 $MCP_SHA1" >&2; exit 1; }
 [[ "$FORGE_SHA1" == d0ab8e116da0e50c6e6099791f97772a08469626 ]] || { echo "ERROR: unexpected Forge universal SHA-1 $FORGE_SHA1" >&2; exit 1; }
 unzip -p "$ACOUSTIC_MCP_CONFIG_1122" config/joined.tsrg > "$OUT/joined.tsrg"
-TOOL_HASH=$(sha256sum "$ROOT/dev-tools/RealSrgRemapper.java"|awk '{print $1}')
+TOOL_HASH=$(sha256sum "$ROOT/tools/verification/1.12.2/dev-tools/RealSrgRemapper.java"|awk '{print $1}')
 KEY=$(printf '%s\n%s\n%s\n%s\n' "$CLIENT_SHA1" "$MCP_SHA1" "$FORGE_SHA1" "$TOOL_HASH" | sha256sum | awk '{print $1}')
 if [[ -f "$OUT/cache.key" && "$(cat "$OUT/cache.key")" == "$KEY" && -s "$OUT/minecraft-client-srg.jar" && -s "$OUT/forge-srg.jar" ]]; then
   echo '[PASS] reusable real SRG remap cache'
   exit 0
 fi
 rm -rf "$OUT/tool-classes"; mkdir -p "$OUT/tool-classes"
-javac --add-exports java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED --add-exports java.base/jdk.internal.org.objectweb.asm.commons=ALL-UNNAMED -d "$OUT/tool-classes" "$ROOT/dev-tools/RealSrgRemapper.java"
+javac --add-exports java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED --add-exports java.base/jdk.internal.org.objectweb.asm.commons=ALL-UNNAMED -d "$OUT/tool-classes" "$ROOT/tools/verification/1.12.2/dev-tools/RealSrgRemapper.java"
 JAVA_REMAP=(java --add-exports java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED --add-exports java.base/jdk.internal.org.objectweb.asm.commons=ALL-UNNAMED -cp "$OUT/tool-classes" RealSrgRemapper "$OUT/joined.tsrg")
 "${JAVA_REMAP[@]}" "$ACOUSTIC_MC_1122_CLIENT" "$OUT/minecraft-client-srg.jar"
 "${JAVA_REMAP[@]}" "$ACOUSTIC_FORGE_1122_UNIVERSAL" "$OUT/forge-srg.jar"

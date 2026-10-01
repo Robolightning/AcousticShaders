@@ -33,7 +33,7 @@ fi
 javac \
   --add-exports java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED \
   -d "$OUT/tool-classes" \
-  "$ROOT/dev-tools/StripMcpGuiAliases.java"
+  "$ROOT/tools/verification/1.12.2/dev-tools/StripMcpGuiAliases.java"
 java \
   --add-exports java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED \
   -cp "$OUT/tool-classes" \
@@ -96,7 +96,7 @@ with zipfile.ZipFile(jar) as z:
 print(f'[PASS] reobf-equivalent JAR: exact {len(expected)}-class verified production set, Java 8, resources/manifest present, no shaded Kotlin runtime')
 PYSTRUCT
 
-python3 "$ROOT/dev-tools/verify-rfg-reobf-jar.py" "$JAR"
+python3 "$ROOT/tools/verification/1.12.2/dev-tools/verify-rfg-reobf-jar.py" "$JAR"
 "$ROOT/dev-real-srg-bytecode-audit.sh" "$STAGE"
 
 SHA=$(sha256sum "$JAR" | awk '{print $1}')

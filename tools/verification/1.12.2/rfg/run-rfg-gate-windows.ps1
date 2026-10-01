@@ -231,7 +231,7 @@ export ACOUSTIC_KOTLIN_HOME="$KOTLIN_HOME"
 export ACOUSTIC_WINDOWS_DOWNLOADS="$DOWNLOADS_WSL"
 
 printf '\n%s\n' '=== Starting real RetroFuturaGradle release gate ==='
-bash rfg-1.12.2/bootstrap-wsl.sh
+bash tools/verification/1.12.2/rfg/bootstrap-wsl.sh
 '@
 
     $WslScript = $Template

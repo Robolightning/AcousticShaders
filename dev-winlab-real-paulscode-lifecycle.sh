@@ -71,7 +71,7 @@ for jar_file in "${KOTLIN_JARS[@]}"; do HOST_CP="$HOST_CP:$jar_file"; done
 javac --release 8 -Xlint:all,-options -Werror \
   -cp "$HOST_CP" \
   -d "$OUT/classes" \
-  "$ROOT/dev-tools/RealPaulscodeLifecycleProbe.java"
+  "$ROOT/tools/verification/1.12.2/dev-tools/RealPaulscodeLifecycleProbe.java"
 
 wine_z_path() {
   python3 - "$1" <<'PY'

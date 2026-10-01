@@ -60,7 +60,7 @@ with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
     for p in sorted(x for x in root.rglob('*') if x.is_file()):
         i=zipfile.ZipInfo(p.relative_to(root).as_posix(),(2026,8,31,20,0,0));i.compress_type=zipfile.ZIP_DEFLATED;i.external_attr=0o644<<16;z.writestr(i,p.read_bytes())
 PYDATA
-cp "$ROOT/windows/Install-And-Test-AcousticShaders-1.12.2.ps1" "$DIST/Install-And-Test-AcousticShaders-1.12.2.ps1"
+cp "$ROOT/tools/verification/1.12.2/windows/Install-And-Test-AcousticShaders-1.12.2.ps1" "$DIST/Install-And-Test-AcousticShaders-1.12.2.ps1"
 cat > "$DIST/FIRST-TEST-RU.txt" <<'TXT'
 Acoustic Shaders 0.3.0 — Minecraft 1.12.2
 
@@ -158,7 +158,7 @@ find minecraft-1.12.2/runtime-smoke/src/main/java -name '*.java' | sort > "$OUT/
 javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$JAR:$KOTLIN_CP" -d "$OUT/runtime-smoke" @"$OUT/runtime-smoke-sources.txt"
 PROJECTILE_LINK_JAVAP="$OUT/release-projectile-moving-sound-linkage-javap.txt"
 javap -classpath "$JAR" -v 'dev.acoustic.mc1122.forge.LegacyProjectileEmitterManager$ProjectileFlightSound' > "$PROJECTILE_LINK_JAVAP"
-python3 dev-tools/verify-projectile-moving-sound-linkage.py "$PROJECTILE_LINK_JAVAP"
+python3 tools/verification/1.12.2/dev-tools/verify-projectile-moving-sound-linkage.py "$PROJECTILE_LINK_JAVAP"
 java -ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$JAR:$KOTLIN_CP:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.LegacyForgeSmokeTest
 java -ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$JAR:$KOTLIN_CP:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.ProjectileEmitterSmokeTest
 java -ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$JAR:$KOTLIN_CP:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.EffectsDisableProjectileSmokeTest

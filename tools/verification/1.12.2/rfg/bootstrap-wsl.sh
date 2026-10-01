@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 WORK="${ACOUSTIC_RFG_BOOTSTRAP_ROOT:-$HOME/acoustic-rfg-1.12.2}"
 RFG="$WORK/RetroFuturaGradle-1.4.9"
 LEGACY_RFG="$WORK/RetroFuturaGradle-1.4.9-forge2864"
@@ -45,8 +45,8 @@ ensure_rfg_disk_space() {
   fi
 
   echo "WARNING: low WSL disk space; removing only regenerable Acoustic/RFG build state." >&2
-  remove_generated_path "$ROOT/rfg-1.12.2/build" 'current RFG project build/'
-  remove_generated_path "$ROOT/rfg-1.12.2/.gradle" 'current RFG project .gradle/'
+  remove_generated_path "$ROOT/tools/verification/1.12.2/rfg/build" 'current RFG project build/'
+  remove_generated_path "$ROOT/tools/verification/1.12.2/rfg/.gradle" 'current RFG project .gradle/'
   remove_generated_path "$WORK/result" 'previous result staging'
   remove_generated_path "$WORK/reobf-audit-classes" 'previous reobf audit classes'
   rm -f -- "$WORK/rfg-release-gate.log" "$WORK/AcousticShaders-RFG-1.12.2-Result.zip" 2>/dev/null || true
@@ -187,7 +187,7 @@ if [[ $gradle_rc -ne 0 ]]; then
   exit "$gradle_rc"
 fi
 
-REOBF_JAR="$ROOT/rfg-1.12.2/build/libs/acoustic-shaders-mc1122-0.3.0.jar"
+REOBF_JAR="$ROOT/tools/verification/1.12.2/rfg/build/libs/acoustic-shaders-mc1122-0.3.0.jar"
 [[ -f "$REOBF_JAR" ]] || { echo "ERROR: expected RFG output missing: $REOBF_JAR" >&2; exit 1; }
 cp "$REOBF_JAR" "$RESULT_DIR/"
 cp "$LOG" "$RESULT_DIR/rfg-release-gate.log"

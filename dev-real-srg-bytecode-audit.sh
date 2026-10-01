@@ -12,7 +12,7 @@ rm -rf "$OUT"; mkdir -p "$OUT/tool-classes"
 javac \
   --add-exports java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED \
   -d "$OUT/tool-classes" \
-  "$ROOT/dev-tools/RealSrgBytecodeAudit.java"
+  "$ROOT/tools/verification/1.12.2/dev-tools/RealSrgBytecodeAudit.java"
 java \
   --add-exports java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED \
   -cp "$OUT/tool-classes" \

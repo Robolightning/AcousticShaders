@@ -5,7 +5,7 @@ cd "$ROOT"
 for script in dev-rfg-buildenv-pack.sh dev-rfg-buildenv-import.sh; do bash -n "$script"; done
 python3 - <<'PYCODE'
 from pathlib import Path
-p=Path('dev-tools/rfg_buildenv_manifest.py')
+p=Path('tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py')
 compile(p.read_text(encoding='utf-8'), str(p), 'exec')
 PYCODE
 for script in dev-rfg-buildenv-pack.sh dev-rfg-buildenv-import.sh; do
@@ -37,7 +37,7 @@ then
 else
   printf '%s\n' '[INFO] host cannot create symlinks; skipping filesystem symlink fixture'
 fi
-python3 dev-tools/rfg_buildenv_manifest.py create "$TMP/payload" "$TMP/MANIFEST.tsv" >/dev/null
+python3 tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py create "$TMP/payload" "$TMP/MANIFEST.tsv" >/dev/null
 if [[ "$SYMLINK_FIXTURE" == 1 ]]; then
   grep -F $'L\t14\t' "$TMP/MANIFEST.tsv" | grep -F $'link-to-a\t../cache/a.txt' >/dev/null
 else
@@ -54,7 +54,7 @@ manifest.write_text(
     f'L\t{len(target.encode("utf-8"))}\t{digest}\tlink-to-a\t{target}\n',
     encoding='utf-8',
 )
-spec = importlib.util.spec_from_file_location('rfg_buildenv_manifest', 'dev-tools/rfg_buildenv_manifest.py')
+spec = importlib.util.spec_from_file_location('rfg_buildenv_manifest', 'tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py')
 module = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(module)
@@ -62,7 +62,7 @@ parsed = module.parse_manifest(manifest)
 assert parsed['link-to-a'] == ('L', len(target.encode('utf-8')), digest, target)
 PYCODE
 fi
-python3 dev-tools/rfg_buildenv_manifest.py verify "$TMP/payload" "$TMP/MANIFEST.tsv" >/dev/null
+python3 tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py verify "$TMP/payload" "$TMP/MANIFEST.tsv" >/dev/null
 # Prove the exporter pattern can bundle an exact detached commit without mutating
 # the authoritative worktree: fetch it into a temporary named ref, bundle, clone, verify.
 mkdir -p "$TMP/git-work"
@@ -80,7 +80,7 @@ git bundle verify "$TMP/rfg.bundle" >/dev/null
 git clone -q -b rfg-1.4.9 "$TMP/rfg.bundle" "$TMP/git-clone"
 [[ "$(git -C "$TMP/git-clone" rev-parse HEAD)" == "$FIXTURE_COMMIT" ]] || { echo 'ERROR: synthetic RFG Git bundle roundtrip changed commit' >&2; exit 1; }
 printf 'tamper\n' >> "$TMP/payload/cache/a.txt"
-if python3 dev-tools/rfg_buildenv_manifest.py verify "$TMP/payload" "$TMP/MANIFEST.tsv" >/dev/null 2>&1; then
+if python3 tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py verify "$TMP/payload" "$TMP/MANIFEST.tsv" >/dev/null 2>&1; then
   echo 'ERROR: RFG buildenv manifest accepted tampered payload' >&2
   exit 1
 fi

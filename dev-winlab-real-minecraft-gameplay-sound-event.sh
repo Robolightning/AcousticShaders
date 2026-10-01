@@ -8,7 +8,7 @@ MOD_JAR="${ACOUSTIC_MOD_JAR:-$ROOT/dist/acoustic-shaders-mc1122-0.3.0.jar}"
 MC_SRG_JAR="${ACOUSTIC_REAL_SRG_MC_JAR:-$ROOT/out/real-srg/minecraft-client-srg.jar}"
 FORGE_SRG_JAR="${ACOUSTIC_REAL_SRG_FORGE_JAR:-$ROOT/out/real-srg/forge-srg.jar}"
 OUT="${ACOUSTIC_REAL_MINECRAFT_GAMEPLAY_SOUND_EVENT_OUT:-$ROOT/out/winlab-real-minecraft-gameplay-sound-event}"
-PROBE_SRC="$ROOT/dev-tools/RealMinecraftGameplaySoundEventProbeMod.java"
+PROBE_SRC="$ROOT/tools/verification/1.12.2/dev-tools/RealMinecraftGameplaySoundEventProbeMod.java"
 PROBE_JAR="$OUT/AcousticShaders-Real-Minecraft-Gameplay-Sound-Event-Probe.jar"
 CLIENT_OUT="$OUT/client"
 

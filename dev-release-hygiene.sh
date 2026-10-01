@@ -155,7 +155,7 @@ values={
  'mcmod.info': json.loads(Path('minecraft-1.12.2/src/forge/resources/mcmod.info').read_text())[0]['version'],
  'MANIFEST.MF': one(r'^Implementation-Version:\s*(\S+)$',Path('minecraft-1.12.2/src/forge/resources/META-INF/MANIFEST.MF').read_text(),'MANIFEST.MF'),
  'AcousticShadersForgeMod.kt': one(r'const val VERSION\s*=\s*"([^"]+)"',Path('minecraft-1.12.2/src/forge/kotlin/dev/acoustic/mc1122/forge/AcousticShadersForgeMod.kt').read_text(),'AcousticShadersForgeMod.kt'),
- 'rfg build.gradle': one(r"^version\s*=\s*'([^']+)'$",Path('rfg-1.12.2/build.gradle').read_text(),'rfg build.gradle'),
+ 'rfg build.gradle': one(r"^version\s*=\s*'([^']+)'$",Path('tools/verification/1.12.2/rfg/build.gradle').read_text(),'rfg build.gradle'),
 }
 bad={k:v for k,v in values.items() if v!=expected}
 if bad:

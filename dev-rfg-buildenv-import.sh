@@ -20,7 +20,7 @@ trap 'rm -rf "$TMP"' EXIT
 zstd -q -t "$BUNDLE"
 zstd -q -dc "$BUNDLE" | tar -xf - -C "$TMP"
 [[ -f "$TMP/MANIFEST.tsv" && -d "$TMP/payload" ]] || { echo 'ERROR: invalid RFG buildenv bundle layout' >&2; exit 2; }
-python3 "$ROOT/dev-tools/rfg_buildenv_manifest.py" verify "$TMP/payload" "$TMP/MANIFEST.tsv"
+python3 "$ROOT/tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py" verify "$TMP/payload" "$TMP/MANIFEST.tsv"
 META="$TMP/payload/BUILDENV.txt"
 for required in \
   'format=AcousticShaders-RFG-Offline-BuildEnv-v1' \

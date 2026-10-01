@@ -62,7 +62,7 @@ requires.kotlin=2.4.0
 requires.bootstrap.java=17
 requires.minecraft.java=8
 EOF
-python3 "$ROOT/dev-tools/rfg_buildenv_manifest.py" create "$PAYLOAD" "$STAGE/MANIFEST.tsv"
+python3 "$ROOT/tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py" create "$PAYLOAD" "$STAGE/MANIFEST.tsv"
 mkdir -p "$(dirname "$OUT")"
 rm -f "$OUT"
 # Normalized archive metadata makes repeated exports from byte-identical payloads reproducible.
@@ -72,6 +72,6 @@ zstd -q -t "$OUT"
 VERIFY="$(mktemp -d "${TMPDIR:-/tmp}/acoustic-rfg-buildenv-verify.XXXXXX")"
 trap 'rm -rf "$STAGE" "$VERIFY"' EXIT
 zstd -q -dc "$OUT" | tar -xf - -C "$VERIFY"
-python3 "$ROOT/dev-tools/rfg_buildenv_manifest.py" verify "$VERIFY/payload" "$VERIFY/MANIFEST.tsv"
+python3 "$ROOT/tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py" verify "$VERIFY/payload" "$VERIFY/MANIFEST.tsv"
 printf '[PASS] exact offline RFG buildenv bundle created: %s\n' "$OUT"
 printf 'SHA-256: %s\n' "$(sha256sum "$OUT" | awk '{print $1}')"

@@ -17,7 +17,7 @@ inputs = [
     Path('acoustic-testkit/src/main'),
     Path('examples/reference-pack'),
     Path('examples/material-resource-pack'),
-    Path('windows'),
+    Path('tools/verification/1.12.2/windows'),
 ]
 files = []
 for base in inputs:
