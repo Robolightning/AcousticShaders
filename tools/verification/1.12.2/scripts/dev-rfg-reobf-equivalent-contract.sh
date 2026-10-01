@@ -96,7 +96,7 @@ with zipfile.ZipFile(jar) as z:
 print(f'[PASS] reobf-equivalent JAR: exact {len(expected)}-class verified production set, Java 8, resources/manifest present, no shaded Kotlin runtime')
 PYSTRUCT
 
-python3 "$ROOT/tools/verification/1.12.2/dev-tools/verify-rfg-reobf-jar.py" "$JAR"
+"$ROOT/tools/verification/1.12.2/scripts/dev-verification-tool.sh" verify-rfg-jar "$JAR"
 "$ROOT/tools/verification/1.12.2/scripts/dev-real-srg-bytecode-audit.sh" "$STAGE"
 
 SHA=$(sha256sum "$JAR" | awk '{print $1}')

@@ -25,7 +25,7 @@ collapsed into one version.
 The authoritative source has dual MCP/SRG GUI entry points because the custom release pipeline is
 already SRG-facing. A normal RFG build compiles against MCP names and then reobfuscates them to
 SRG, so compiling those dual methods verbatim would create duplicate methods. The build therefore
-uses `tools/verification/1.12.2/dev-tools/prepare-rfg-kotlin-source.py` to create a temporary MCP-only GUI view. No production
+uses the Java-8 verification utility through `tools/verification/1.12.2/scripts/dev-verification-tool.sh` to create a temporary MCP-only GUI view. No production
 source file is modified.
 
 `compileAcousticKotlin` keeps `-Werror` enabled, but filters non-existent filesystem entries from

@@ -9,7 +9,7 @@ BUNDLE="${1:-${ACOUSTIC_RFG_BUILDENV_BUNDLE:-}}"
 [[ -n "$BUNDLE" ]] || { echo 'usage: tools/verification/1.12.2/scripts/dev-rfg-buildenv-import.sh <AcousticShaders-RFG-OFFLINE-BUILDENV.tar.zst>' >&2; exit 2; }
 BUNDLE="$(readlink -f "$BUNDLE")"
 [[ -f "$BUNDLE" ]] || { echo "ERROR: RFG buildenv bundle missing: $BUNDLE" >&2; exit 2; }
-for cmd in git python3 sha256sum tar zstd unzip; do command -v "$cmd" >/dev/null 2>&1 || { echo "ERROR: required command missing: $cmd" >&2; exit 2; }; done
+for cmd in git java javac sha256sum tar zstd unzip; do command -v "$cmd" >/dev/null 2>&1 || { echo "ERROR: required command missing: $cmd" >&2; exit 2; }; done
 
 WORK="${ACOUSTIC_RFG_LOCAL_ROOT:-$ROOT/out/rfg-local}"
 GRADLE_HOME="$WORK/gradle-8.14.3"
@@ -20,7 +20,7 @@ trap 'rm -rf "$TMP"' EXIT
 zstd -q -t "$BUNDLE"
 zstd -q -dc "$BUNDLE" | tar -xf - -C "$TMP"
 [[ -f "$TMP/MANIFEST.tsv" && -d "$TMP/payload" ]] || { echo 'ERROR: invalid RFG buildenv bundle layout' >&2; exit 2; }
-python3 "$ROOT/tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py" verify "$TMP/payload" "$TMP/MANIFEST.tsv"
+"$ROOT/tools/verification/1.12.2/scripts/dev-verification-tool.sh" manifest-verify "$TMP/payload" "$TMP/MANIFEST.tsv"
 META="$TMP/payload/BUILDENV.txt"
 for required in \
   'format=AcousticShaders-RFG-Offline-BuildEnv-v1' \

@@ -87,7 +87,7 @@ find minecraft-1.12.2/runtime-smoke/src/main/java -name '*.java' | sort > "$OUT/
 javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$OUT/forge-classes:$KOTLIN_CP" -d "$OUT/runtime-smoke" @"$OUT/runtime-smoke-sources.txt"
 PROJECTILE_LINK_JAVAP="$OUT/projectile-moving-sound-linkage-javap.txt"
 javap -classpath "$OUT/forge-classes" -v 'dev.acoustic.mc1122.forge.LegacyProjectileEmitterManager$ProjectileFlightSound' > "$PROJECTILE_LINK_JAVAP"
-python3 tools/verification/1.12.2/dev-tools/verify-projectile-moving-sound-linkage.py "$PROJECTILE_LINK_JAVAP"
+./tools/verification/1.12.2/scripts/dev-verification-tool.sh verify-projectile-linkage "$PROJECTILE_LINK_JAVAP"
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.ForgeRegistryFallbackSmokeTest
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.LegacyForgeSmokeTest
 "$KOTLIN_RUNNER" -J-ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$OUT/forge-classes:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.ProjectileEmitterSmokeTest

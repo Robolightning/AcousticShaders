@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"; cd "$ROOT"
-for f in tools/verification/1.12.2/rfg/settings.gradle tools/verification/1.12.2/rfg/build.gradle tools/verification/1.12.2/rfg/gradle.properties tools/verification/1.12.2/rfg/bootstrap-wsl.sh tools/verification/1.12.2/rfg/run-rfg-gate-windows.ps1 tools/verification/1.12.2/dev-tools/prepare-rfg-kotlin-source.py tools/verification/1.12.2/dev-tools/verify-rfg-reobf-jar.py tools/verification/1.12.2/scripts/dev-winlab-contract.sh; do
+for f in tools/verification/1.12.2/rfg/settings.gradle tools/verification/1.12.2/rfg/build.gradle tools/verification/1.12.2/rfg/gradle.properties tools/verification/1.12.2/rfg/bootstrap-wsl.sh tools/verification/1.12.2/rfg/run-rfg-gate-windows.ps1 tools/verification/1.12.2/dev-tools/VerificationTools.java tools/verification/1.12.2/scripts/dev-verification-tool.sh tools/verification/1.12.2/scripts/dev-winlab-contract.sh; do
   [[ -s "$f" ]] || { echo "ERROR: missing RFG workspace file $f" >&2; exit 1; }
 done
 grep -F "RFG_COMMIT='94702da47e2c0d626986a42bd8124c63e52afc2a'" tools/verification/1.12.2/rfg/bootstrap-wsl.sh >/dev/null
@@ -19,12 +19,10 @@ grep -F 'return "/mnt/$drive/$tail"' tools/verification/1.12.2/rfg/run-rfg-gate-
 grep -F '$Matches[2].Replace([char]92, [char]47)' tools/verification/1.12.2/rfg/run-rfg-gate-windows.ps1 >/dev/null
 grep -F "PathSelfTestInput = 'C:\Users\ExampleUser\Downloads\AcousticShaders-RFG-WSL-RUN.sh'" tools/verification/1.12.2/rfg/run-rfg-gate-windows.ps1 >/dev/null
 grep -F "PathSelfTestExpected = '/mnt/c/Users/ExampleUser/Downloads/AcousticShaders-RFG-WSL-RUN.sh'" tools/verification/1.12.2/rfg/run-rfg-gate-windows.ps1 >/dev/null
-python3 - <<'PY'
-from pathlib import Path
-s = Path('tools/verification/1.12.2/rfg/run-rfg-gate-windows.ps1').read_text()
-if ".Replace('\\\\', '/')" in s:
-    raise SystemExit('ERROR: Windows RFG launcher must not use a two-backslash PowerShell replacement literal')
-PY
+if grep -F ".Replace('\\', '/')" tools/verification/1.12.2/rfg/run-rfg-gate-windows.ps1 >/dev/null; then
+  echo 'ERROR: Windows RFG launcher must not use a two-backslash PowerShell replacement literal' >&2
+  exit 1
+fi
 if grep -F 'wslpath -a -u' tools/verification/1.12.2/rfg/run-rfg-gate-windows.ps1 >/dev/null; then
   echo 'ERROR: Windows RFG launcher must not depend on fragile wslpath argument conversion' >&2
   exit 1
@@ -94,7 +92,7 @@ if grep -F "'-classpath', sourceSets.main.compileClasspath.asPath" tools/verific
   exit 1
 fi
 grep -F "'MixinConfigs': 'mixins.acousticshaders.json'" tools/verification/1.12.2/rfg/build.gradle >/dev/null
-grep -F "new File(projectRoot, 'tools/verification/1.12.2/dev-tools/verify-rfg-reobf-jar.py').absolutePath" tools/verification/1.12.2/rfg/build.gradle >/dev/null
+grep -F "new File(projectRoot, 'tools/verification/1.12.2/scripts/dev-verification-tool.sh').absolutePath" tools/verification/1.12.2/rfg/build.gradle >/dev/null
 # These compile-stub shapes intentionally mirror the exact Minecraft 1.12.2 launcher APIs that
 # previously differed from our permissive stubs and failed only inside real RFG.
 grep -F 'public static final int CL_MEM_READ_WRITE=1,CL_MEM_WRITE_ONLY=2,CL_MEM_READ_ONLY=4,CL_MEM_COPY_HOST_PTR=32;' minecraft-1.12.2/compile-stubs/src/main/java/org/lwjgl/opencl/CL10.java >/dev/null
@@ -109,20 +107,23 @@ for f in MixinSoundSystem.kt MixinSourceLWJGLOpenAL.kt MixinSourceLifecycle.kt; 
   grep -F 'at = [At(' "minecraft-1.12.2/src/forge/kotlin/dev/acoustic/mc1122/mixin/$f" >/dev/null
 done
 OUT="$ROOT/out/rfg-source-contract"
-python3 tools/verification/1.12.2/dev-tools/prepare-rfg-kotlin-source.py --root "$ROOT" --out "$OUT"
-python3 - "$OUT" <<'PY'
-from pathlib import Path
-import re,sys
-root=Path(sys.argv[1])
-files=list(root.rglob('*.kt'))
-if len(files) < 150: raise SystemExit(f'ERROR: suspiciously small RFG source view: {len(files)}')
-for name in ('GuiAcousticShaders.kt','GuiAcousticShaderOptions.kt','GuiRuntimeAudio.kt'):
-    p=next(root.rglob(name));s=p.read_text()
-    if re.search(r'\boverride\s+fun\s+func_',s): raise SystemExit('ERROR: SRG GUI override survived RFG source view: '+name)
-    for m in ('initGui','actionPerformed','drawScreen'):
-        if not re.search(rf'\boverride\s+fun\s+{m}\b',s): raise SystemExit(f'ERROR: MCP GUI override missing {name}:{m}')
-    if 'super.func_' in s: raise SystemExit('ERROR: direct SRG super-call survived RFG source view: '+name)
-print(f'[PASS] RFG workspace source contract: {len(files)} Kotlin production files')
-PY
+"$ROOT/tools/verification/1.12.2/scripts/dev-verification-tool.sh" prepare-rfg-source --root "$ROOT" --out "$OUT"
+COUNT="$(find "$OUT" -type f -name '*.kt' | wc -l | tr -d ' ')"
+(( COUNT >= 150 )) || { echo "ERROR: suspiciously small RFG source view: $COUNT" >&2; exit 1; }
+for name in GuiAcousticShaders.kt GuiAcousticShaderOptions.kt GuiRuntimeAudio.kt; do
+  mapfile -t matches < <(find "$OUT" -type f -name "$name" -print)
+  [[ ${#matches[@]} -eq 1 ]] || { echo "ERROR: expected exactly one $name, found ${#matches[@]}" >&2; exit 1; }
+  file="${matches[0]}"
+  if grep -Eq '\boverride[[:space:]]+fun[[:space:]]+func_' "$file"; then
+    echo "ERROR: SRG GUI override survived RFG source view: $name" >&2; exit 1
+  fi
+  for m in initGui actionPerformed drawScreen; do
+    grep -Eq "override[[:space:]]+fun[[:space:]]+$m([^[:alnum:]_]|$)" "$file" || { echo "ERROR: MCP GUI override missing $name:$m" >&2; exit 1; }
+  done
+  if grep -F 'super.func_' "$file" >/dev/null; then
+    echo "ERROR: direct SRG super-call survived RFG source view: $name" >&2; exit 1
+  fi
+done
+printf '[PASS] RFG workspace source contract: %s Kotlin production files\n' "$COUNT"
 bash -n tools/verification/1.12.2/rfg/bootstrap-wsl.sh
 echo '[PASS] pinned RetroFuturaGradle 1.12.2 workspace contract'

@@ -15,7 +15,7 @@ GRADLE_USER_HOME="${GRADLE_USER_HOME:-$HOME/.gradle}"
 OUT="${ACOUSTIC_RFG_BUILDENV_BUNDLE:-$WORK/AcousticShaders-RFG-OFFLINE-BUILDENV.tar.zst}"
 
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 2; }
-for cmd in git python3 sha256sum tar zstd; do command -v "$cmd" >/dev/null 2>&1 || fail "required command missing: $cmd"; done
+for cmd in git java javac sha256sum tar zstd; do command -v "$cmd" >/dev/null 2>&1 || fail "required command missing: $cmd"; done
 [[ -f "$GRADLE_ZIP" ]] || fail "Gradle $GRADLE_VERSION distribution missing: $GRADLE_ZIP"
 [[ "$(sha256sum "$GRADLE_ZIP" | awk '{print $1}')" == "$GRADLE_SHA256" ]] || fail "Gradle $GRADLE_VERSION ZIP SHA-256 mismatch"
 [[ -d "$RFG_SOURCE/.git" ]] || fail "RFG source checkout missing: $RFG_SOURCE"
@@ -62,7 +62,7 @@ requires.kotlin=2.4.0
 requires.bootstrap.java=17
 requires.minecraft.java=8
 EOF
-python3 "$ROOT/tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py" create "$PAYLOAD" "$STAGE/MANIFEST.tsv"
+"$ROOT/tools/verification/1.12.2/scripts/dev-verification-tool.sh" manifest-create "$PAYLOAD" "$STAGE/MANIFEST.tsv"
 mkdir -p "$(dirname "$OUT")"
 rm -f "$OUT"
 # Normalized archive metadata makes repeated exports from byte-identical payloads reproducible.
@@ -72,6 +72,6 @@ zstd -q -t "$OUT"
 VERIFY="$(mktemp -d "${TMPDIR:-/tmp}/acoustic-rfg-buildenv-verify.XXXXXX")"
 trap 'rm -rf "$STAGE" "$VERIFY"' EXIT
 zstd -q -dc "$OUT" | tar -xf - -C "$VERIFY"
-python3 "$ROOT/tools/verification/1.12.2/dev-tools/rfg_buildenv_manifest.py" verify "$VERIFY/payload" "$VERIFY/MANIFEST.tsv"
+"$ROOT/tools/verification/1.12.2/scripts/dev-verification-tool.sh" manifest-verify "$VERIFY/payload" "$VERIFY/MANIFEST.tsv"
 printf '[PASS] exact offline RFG buildenv bundle created: %s\n' "$OUT"
 printf 'SHA-256: %s\n' "$(sha256sum "$OUT" | awk '{print $1}')"

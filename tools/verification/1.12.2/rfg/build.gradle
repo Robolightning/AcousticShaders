@@ -153,10 +153,12 @@ tasks.register('verifyExactKotlin') {
 tasks.register('prepareAcousticRfgKotlinSource', Exec) {
     group = 'build setup'
     inputs.files(productionRoots.collect { fileTree(it) { include '**/*.kt' } })
-    inputs.file(new File(projectRoot, 'tools/verification/1.12.2/dev-tools/prepare-rfg-kotlin-source.py'))
+    inputs.file(new File(projectRoot, 'tools/verification/1.12.2/dev-tools/VerificationTools.java'))
+    inputs.file(new File(projectRoot, 'tools/verification/1.12.2/scripts/dev-verification-tool.sh'))
     outputs.dir(generatedKotlinRoot)
-    commandLine 'python3',
-        new File(projectRoot, 'tools/verification/1.12.2/dev-tools/prepare-rfg-kotlin-source.py').absolutePath,
+    commandLine 'bash',
+        new File(projectRoot, 'tools/verification/1.12.2/scripts/dev-verification-tool.sh').absolutePath,
+        'prepare-rfg-source',
         '--root', projectRoot.absolutePath,
         '--out', generatedKotlinRoot.get().asFile.absolutePath
 }
@@ -293,9 +295,9 @@ tasks.register('verifyReobfAcousticJar') {
         }
 
         exec {
-            commandLine 'python3',
-                new File(projectRoot, 'tools/verification/1.12.2/dev-tools/verify-rfg-reobf-jar.py').absolutePath,
-                jarFile.absolutePath
+            commandLine 'bash',
+                new File(projectRoot, 'tools/verification/1.12.2/scripts/dev-verification-tool.sh').absolutePath,
+                'verify-rfg-jar', jarFile.absolutePath
         }
 
         def forgeCfg = configurations.findByName('forgeUniversal')

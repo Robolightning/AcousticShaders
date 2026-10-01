@@ -27,7 +27,7 @@ fail() {
   exit 2
 }
 
-for cmd in git java python3 sha1sum sha256sum; do
+for cmd in git java sha1sum sha256sum; do
   command -v "$cmd" >/dev/null 2>&1 || fail "required command missing: $cmd"
 done
 
@@ -104,5 +104,5 @@ exec "$GRADLE_HOME/bin/gradle" \
   --offline \
   --no-daemon \
   --stacktrace \
-  -p "$ROOT/rfg-1.12.2" \
+  -p "$ROOT/tools/verification/1.12.2/rfg" \
   clean rfgReleaseGate

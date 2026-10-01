@@ -158,7 +158,7 @@ find minecraft-1.12.2/runtime-smoke/src/main/java -name '*.java' | sort > "$OUT/
 javac --release 8 -Xlint:all,-options -Werror -cp "$OUT/forge-stubs:$JAR:$KOTLIN_CP" -d "$OUT/runtime-smoke" @"$OUT/runtime-smoke-sources.txt"
 PROJECTILE_LINK_JAVAP="$OUT/release-projectile-moving-sound-linkage-javap.txt"
 javap -classpath "$JAR" -v 'dev.acoustic.mc1122.forge.LegacyProjectileEmitterManager$ProjectileFlightSound' > "$PROJECTILE_LINK_JAVAP"
-python3 tools/verification/1.12.2/dev-tools/verify-projectile-moving-sound-linkage.py "$PROJECTILE_LINK_JAVAP"
+./tools/verification/1.12.2/scripts/dev-verification-tool.sh verify-projectile-linkage "$PROJECTILE_LINK_JAVAP"
 java -ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$JAR:$KOTLIN_CP:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.LegacyForgeSmokeTest
 java -ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$JAR:$KOTLIN_CP:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.ProjectileEmitterSmokeTest
 java -ea -cp "$OUT/runtime-smoke:$OUT/forge-stubs:$JAR:$KOTLIN_CP:$ROOT/minecraft-1.12.2/src/forge/resources" dev.acoustic.mc1122.forge.EffectsDisableProjectileSmokeTest
