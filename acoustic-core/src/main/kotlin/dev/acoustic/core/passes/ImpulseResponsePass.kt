@@ -73,7 +73,7 @@ class ImpulseResponsePass(private val sampleRate: Int, private val seconds: Doub
         energy /= FrequencyBands.COUNT
         if (rt > 0.0 && energy > 0.0) {
             val start = min(ir.size - 1, (0.05 * sampleRate).toInt())
-            var state = 0x9E3779B97F4A7C15UL.toLong()
+            var state = -7046029254386353131L
             var i = start
             while (i < ir.size) {
                 state = state xor (state shl 13)

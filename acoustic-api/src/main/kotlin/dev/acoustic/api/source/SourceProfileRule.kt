@@ -1,5 +1,6 @@
 package dev.acoustic.api.source
 
+import dev.acoustic.api.compat.lowercaseCompat
 import java.util.Locale
 
 class SourceProfileRule(private val priority: Int, private val kind: MatchKind, match: String, private val profile: AcousticSourceProfile) {
@@ -16,7 +17,7 @@ class SourceProfileRule(private val priority: Int, private val kind: MatchKind, 
     }
     companion object {
         @JvmStatic fun normalize(s: String?): String {
-            var x = s?.trim()?.replace('\\','/')?.lowercase(Locale.ROOT) ?: return ""
+            var x = s?.trim()?.replace('\\','/')?.lowercaseCompat(Locale.ROOT) ?: return ""
             while (x.startsWith("./")) x = x.substring(2)
             return x
         }

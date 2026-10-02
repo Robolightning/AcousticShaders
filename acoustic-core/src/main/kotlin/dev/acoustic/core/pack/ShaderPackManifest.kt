@@ -1,5 +1,6 @@
 package dev.acoustic.core.pack
 
+import dev.acoustic.core.compat.uppercaseCompat
 import dev.acoustic.api.capability.Capability
 import java.util.Collections
 import java.util.EnumSet
@@ -68,7 +69,7 @@ class ShaderPackManifest private constructor(
             val set = EnumSet.noneOf(Capability::class.java)
             for (raw in value) {
                 if (raw !is String) throw IllegalArgumentException("capability must be string")
-                val normalized = raw.trim().uppercase()
+                val normalized = raw.trim().uppercaseCompat(java.util.Locale.ROOT)
                 try { set.add(Capability.valueOf(normalized)) }
                 catch (_: IllegalArgumentException) { throw IllegalArgumentException("unknown capability: $raw") }
             }
@@ -87,7 +88,7 @@ class ShaderPackManifest private constructor(
         }
         private fun string(map: Map<*, *>, key: String): String {
             val value = map[key]
-            if (value !is String || value.isEmpty()) throw IllegalArgumentException("$key must be non-empty string")
+            if (value !is String || value.length == 0) throw IllegalArgumentException("$key must be non-empty string")
             return value
         }
     }

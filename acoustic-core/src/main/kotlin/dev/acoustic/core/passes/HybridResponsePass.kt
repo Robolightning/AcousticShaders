@@ -1,5 +1,6 @@
 package dev.acoustic.core.passes
 
+import dev.acoustic.core.compat.uppercaseCompat
 import dev.acoustic.api.material.FrequencyBands
 import dev.acoustic.api.math.Vec3
 import dev.acoustic.api.pipeline.Pass
@@ -16,7 +17,7 @@ class HybridResponsePass(
     private val requestedCrossover: Double = -1.0,
     private val crossfadeOctaves: Double = 1.0
 ) : Pass {
-    private val mode = (mode ?: "AUTO").trim().uppercase(Locale.ROOT)
+    private val mode = (mode ?: "AUTO").trim().uppercaseCompat(Locale.ROOT)
     override fun id(): String = "standard.hybrid"
     override fun reads(): Set<ResourceKey<*>> = Collections.singleton(StandardResources.DIRECT_PATH)
     override fun optionalReads(): Set<ResourceKey<*>> = Collections.unmodifiableSet(LinkedHashSet(Arrays.asList(StandardResources.DIFFRACTION, StandardResources.EARLY_REFLECTIONS, StandardResources.LATE_REVERB, StandardResources.WAVE_FIELD)))

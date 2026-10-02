@@ -25,12 +25,15 @@ class FdtdProblem(
         val present = heterogeneousArrays.count { it != null }
         require(present == 0 || present == heterogeneousArrays.size) { "heterogeneous FDTD arrays must be supplied together" }
         if (present != 0) {
-            require(lambdaByCell!!.size == cells && dampingByCell!!.size == cells && densityByCell!!.size == cells) { "heterogeneous FDTD array size mismatch" }
+            val localLambda = lambdaByCell!!
+            val localDamping = dampingByCell!!
+            val localDensity = densityByCell!!
+            require(localLambda.size == cells && localDamping.size == cells && localDensity.size == cells) { "heterogeneous FDTD array size mismatch" }
             var i = 0
             while (i < cells) {
-                require(lambdaByCell[i] >= 0f && lambdaByCell[i].isFinite()) { "invalid local FDTD lambda" }
-                require(dampingByCell[i] >= 0f && dampingByCell[i].isFinite()) { "invalid local FDTD damping" }
-                require(densityByCell[i] > 0f && densityByCell[i].isFinite()) { "invalid local medium density" }
+                require(localLambda[i] >= 0f && localLambda[i].isFinite()) { "invalid local FDTD lambda" }
+                require(localDamping[i] >= 0f && localDamping[i].isFinite()) { "invalid local FDTD damping" }
+                require(localDensity[i] > 0f && localDensity[i].isFinite()) { "invalid local medium density" }
                 i++
             }
         }

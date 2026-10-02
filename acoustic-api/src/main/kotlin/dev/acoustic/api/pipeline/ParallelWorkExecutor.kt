@@ -1,9 +1,15 @@
 package dev.acoustic.api.pipeline
 
 interface ParallelWorkExecutor {
-    fun interface RangeTask {
+    interface RangeTask {
         @Throws(Exception::class)
         fun run(fromInclusive: Int, toExclusive: Int)
+
+        companion object {
+            operator fun invoke(block: (Int, Int) -> Unit): RangeTask = object : RangeTask {
+                override fun run(fromInclusive: Int, toExclusive: Int) = block(fromInclusive, toExclusive)
+            }
+        }
     }
     fun workerCount(): Int
     @Throws(Exception::class)

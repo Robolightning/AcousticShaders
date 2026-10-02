@@ -1,5 +1,6 @@
 package dev.acoustic.core.pack
 
+import dev.acoustic.core.compat.uppercaseCompat
 import dev.acoustic.api.material.AcousticMaterial
 import dev.acoustic.api.material.FrequencyBands
 import dev.acoustic.api.material.resolve.MaterialRule
@@ -41,7 +42,7 @@ class MaterialPack private constructor(
                     val materialId = requiredString(raw, "material")
                     val material = materials[materialId] ?: throw IllegalArgumentException("unknown material in rule: $materialId")
                     val priority = if (raw.containsKey("priority")) number(raw["priority"], "priority").toInt() else 0
-                    val matchKind = try { MaterialRule.MatchKind.valueOf(kind.uppercase()) }
+                    val matchKind = try { MaterialRule.MatchKind.valueOf(kind.uppercaseCompat(java.util.Locale.ROOT)) }
                     catch (_: IllegalArgumentException) { throw IllegalArgumentException("unknown material rule kind: $kind") }
                     rules.add(MaterialRule(priority, matchKind, match, material))
                 }
@@ -63,7 +64,7 @@ class MaterialPack private constructor(
         private fun number(raw: Any?, name: String): Number = raw as? Number ?: throw IllegalArgumentException("$name must be number")
         private fun requiredString(map: Map<*, *>, key: String): String {
             val value = map[key]
-            if (value !is String || value.isEmpty()) throw IllegalArgumentException("$key must be non-empty string")
+            if (value !is String || value.length == 0) throw IllegalArgumentException("$key must be non-empty string")
             return value
         }
     }

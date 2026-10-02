@@ -1,5 +1,7 @@
 package dev.acoustic.core.passes
 
+import dev.acoustic.core.compat.uppercaseCompat
+import dev.acoustic.core.compat.lowercaseCompat
 import dev.acoustic.api.environment.AcousticEnvironment
 import dev.acoustic.api.material.FrequencyBands
 import dev.acoustic.api.math.Vec3
@@ -30,7 +32,7 @@ class EnvironmentRayPass @JvmOverloads constructor(
     private val minEnergy: Double,
     computeBackend: String? = "AUTO"
 ) : PartitionedPass, AcceleratedPass {
-    private val computeBackend: String = (computeBackend ?: "AUTO").trim().uppercase(Locale.ROOT)
+    private val computeBackend: String = (computeBackend ?: "AUTO").trim().uppercaseCompat(Locale.ROOT)
 
     init {
         require(rayCount >= 1 && maxBounces >= 1 && maxDistancePerBounce > 0.0 && minEnergy >= 0.0) { "invalid ray settings" }
@@ -57,7 +59,7 @@ class EnvironmentRayPass @JvmOverloads constructor(
         val backend: GeometricExternalBackend? = when (computeBackend) {
             "AUTO" -> GeometricBackendRegistry.firstPreferred(scene, rayCount, maxBounces, maxDistancePerBounce, minEnergy)
             "GPU" -> GeometricBackendRegistry.firstSupported(scene, rayCount, maxBounces, maxDistancePerBounce, minEnergy)
-            else -> GeometricBackendRegistry.find(computeBackend.lowercase(Locale.ROOT))
+            else -> GeometricBackendRegistry.find(computeBackend.lowercaseCompat(Locale.ROOT))
         }
         if (backend == null || !backend.supports(scene, rayCount, maxBounces, maxDistancePerBounce, minEnergy)) return null
         return try {
@@ -111,7 +113,7 @@ class EnvironmentRayPass @JvmOverloads constructor(
             val useMedium = mediumHit != null && (solidHit == null || mediumHit.distance + 1.0e-7 < solidHit.distance())
 
             if (useMedium) {
-                val hit = mediumHit
+                val hit = mediumHit!!
                 val incidentMedium = hit.from
                 val segment = hit.distance
                 total += segment

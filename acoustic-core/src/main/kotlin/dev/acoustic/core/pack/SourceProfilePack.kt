@@ -1,5 +1,6 @@
 package dev.acoustic.core.pack
 
+import dev.acoustic.core.compat.uppercaseCompat
 import dev.acoustic.api.material.FrequencyBands
 import dev.acoustic.api.source.AcousticSourceProfile
 import dev.acoustic.api.source.SourceProfileRule
@@ -46,7 +47,7 @@ class SourceProfilePack private constructor(
                     val profileId = requiredString(raw, "profile")
                     val profile = profiles[profileId] ?: throw IllegalArgumentException("unknown profile in rule: $profileId")
                     val kind = requiredString(raw, "kind")
-                    val matchKind = try { SourceProfileRule.MatchKind.valueOf(kind.uppercase(Locale.ROOT)) }
+                    val matchKind = try { SourceProfileRule.MatchKind.valueOf(kind.uppercaseCompat(Locale.ROOT)) }
                     catch (_: IllegalArgumentException) { throw IllegalArgumentException("unknown source rule kind: $kind") }
                     val priorityRaw = raw["priority"]
                     val priority = if (raw.containsKey("priority")) (priorityRaw as? Number ?: throw IllegalArgumentException("priority must be number")).toInt() else 0
@@ -84,12 +85,12 @@ class SourceProfilePack private constructor(
         }
         private fun string(map: Map<*, *>, key: String, fallback: String): String {
             val raw = map[key] ?: return fallback
-            if (raw !is String || raw.trim().isEmpty()) throw IllegalArgumentException("$key must be string")
+            if (raw !is String || raw.trim().length == 0) throw IllegalArgumentException("$key must be string")
             return raw.trim()
         }
         private fun requiredString(map: Map<*, *>, key: String): String {
             val raw = map[key]
-            if (raw !is String || raw.trim().isEmpty()) throw IllegalArgumentException("$key is required")
+            if (raw !is String || raw.trim().length == 0) throw IllegalArgumentException("$key is required")
             return raw.trim()
         }
     }

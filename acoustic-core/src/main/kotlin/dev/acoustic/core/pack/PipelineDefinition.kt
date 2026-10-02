@@ -33,7 +33,7 @@ class PipelineDefinition private constructor(private val format: Int, private va
             for (raw in listValue) {
                 if (raw !is Map<*, *>) throw IllegalArgumentException("pass must be object")
                 val idValue = raw["id"]
-                if (idValue !is String || idValue.isEmpty()) throw IllegalArgumentException("pass id must be non-empty string")
+                if (idValue !is String || idValue.length == 0) throw IllegalArgumentException("pass id must be non-empty string")
                 val enabledValue: Any? = if (raw.containsKey("enabled")) raw["enabled"] else true
                 val enabled = when (enabledValue) {
                     is Boolean -> enabledValue

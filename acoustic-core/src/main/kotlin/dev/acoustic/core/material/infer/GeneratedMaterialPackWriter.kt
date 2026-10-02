@@ -1,5 +1,6 @@
 package dev.acoustic.core.material.infer
 
+import dev.acoustic.core.compat.codeCompat
 import dev.acoustic.api.material.AcousticMaterial
 import java.util.LinkedHashMap
 import java.util.Locale
@@ -62,7 +63,7 @@ class GeneratedMaterialPackWriter {
         val profile = signature.toString()
         var i = 0
         while (i < profile.length) {
-            val c = profile[i].code
+            val c = profile[i].codeCompat()
             hash = hash xor (c and 0xff).toLong(); hash *= 0x100000001b3L
             hash = hash xor ((c ushr 8) and 0xff).toLong(); hash *= 0x100000001b3L
             i++
@@ -85,7 +86,7 @@ class GeneratedMaterialPackWriter {
                 c == '\n' -> out.append("\\n")
                 c == '\r' -> out.append("\\r")
                 c == '\t' -> out.append("\\t")
-                c.code < 32 -> out.append('?')
+                c.codeCompat() < 32 -> out.append('?')
                 else -> out.append(c)
             }
         }

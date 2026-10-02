@@ -1,5 +1,6 @@
 package dev.acoustic.core.io
 
+import dev.acoustic.core.compat.codeCompat
 import dev.acoustic.core.rir.ImpulseResponse
 import java.io.BufferedOutputStream
 import java.io.IOException
@@ -45,7 +46,7 @@ object WavWriter {
     private fun writeAscii(out: OutputStream, value: String) {
         var i = 0
         while (i < value.length) {
-            out.write(value[i].code.toByte().toInt())
+            out.write(value[i].codeCompat().toByte().toInt())
             i++
         }
     }

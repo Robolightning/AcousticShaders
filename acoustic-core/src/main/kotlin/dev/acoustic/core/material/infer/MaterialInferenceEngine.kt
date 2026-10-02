@@ -1,5 +1,6 @@
 package dev.acoustic.core.material.infer
 
+import dev.acoustic.core.compat.lowercaseCompat
 import dev.acoustic.api.material.AcousticMaterial
 import dev.acoustic.api.material.AcousticMaterials
 import dev.acoustic.api.material.FrequencyBands
@@ -21,9 +22,9 @@ class MaterialInferenceEngine {
         val score = LinkedHashMap<String, Double>()
         for (family in FAMILIES) score[family] = 0.0
         val reasons = ArrayList<String>()
-        val registry = f.registryId().lowercase(Locale.ROOT)
-        val material = f.materialName().lowercase(Locale.ROOT)
-        val sound = f.soundTypeName().lowercase(Locale.ROOT)
+        val registry = f.registryId().lowercaseCompat(Locale.ROOT)
+        val material = f.materialName().lowercaseCompat(Locale.ROOT)
+        val sound = f.soundTypeName().lowercaseCompat(Locale.ROOT)
         val joined = "$registry $material $sound"
 
         semantic(score, reasons, material, 3.4, "material")
@@ -148,8 +149,8 @@ class MaterialInferenceEngine {
 
         private fun oreEvidence(score: MutableMap<String, Double>, reasons: MutableList<String>, ore: String?) {
             val original = ore ?: ""
-            val value = original.lowercase(Locale.ROOT)
-            if (value.isEmpty()) return
+            val value = original.lowercaseCompat(Locale.ROOT)
+            if (value.length == 0) return
             val weight = 4.5
             when {
                 containsAny(value,"wood","plank","log") -> { add(score,"wood",weight); reasons.add("ore:$original->wood") }
@@ -172,7 +173,7 @@ class MaterialInferenceEngine {
         }
         private fun add(score: MutableMap<String, Double>, key: String, value: Double) { val old = score[key]; if (old != null) score[key] = old + value }
         private fun containsAny(value: String, vararg tokens: String): Boolean = tokens.any { value.contains(it) }
-        private fun text(f: MaterialFacts): String = buildString { append(f.registryId()).append(' ').append(f.materialName()).append(' ').append(f.soundTypeName()); for (ore in f.dictionaryNames()) append(' ').append(ore) }.lowercase(Locale.ROOT)
+        private fun text(f: MaterialFacts): String = buildString { append(f.registryId()).append(' ').append(f.materialName()).append(' ').append(f.soundTypeName()); for (ore in f.dictionaryNames()) append(' ').append(ore) }.lowercaseCompat(Locale.ROOT)
         private fun clamp(value: Float, lo: Float, hi: Float): Float = if (value < lo) lo else if (value > hi) hi else value
         private fun sanitize(value: String): String = value.replace(Regex("[^a-z0-9_.-]"), "_")
         private fun shortState(value: String): String = Integer.toHexString(value.hashCode())

@@ -1,5 +1,7 @@
 package dev.acoustic.core.wave
 
+import dev.acoustic.core.compat.uppercaseCompat
+import dev.acoustic.core.compat.lowercaseCompat
 import dev.acoustic.api.environment.AcousticEnvironment
 import dev.acoustic.api.environment.AcousticMedia
 import dev.acoustic.api.math.Vec3
@@ -40,7 +42,7 @@ class FdtdWavePass(
     private val cflSafety: Double,
     computeBackend: String?
 ) : RuntimeParallelPass, AcceleratedPass {
-    private val computeBackend: String = (computeBackend ?: "AUTO").trim().uppercase(Locale.ROOT)
+    private val computeBackend: String = (computeBackend ?: "AUTO").trim().uppercaseCompat(Locale.ROOT)
 
     constructor(radiusMeters: Double, subdivisions: Int, maxSteps: Int) :
         this(radiusMeters, subdivisions, maxSteps, 0.45, "AUTO")
@@ -80,7 +82,7 @@ class FdtdWavePass(
         if (!wantsExternal()) return null
         if ((computeBackend == "AUTO" || computeBackend == "GPU") && FdtdBackendRegistry.available().isEmpty()) return null
         if (computeBackend != "AUTO" && computeBackend != "GPU" &&
-            FdtdBackendRegistry.find(computeBackend.lowercase(Locale.ROOT)) == null) return null
+            FdtdBackendRegistry.find(computeBackend.lowercaseCompat(Locale.ROOT)) == null) return null
 
         val scene = context.require(StandardResources.SCENE)
         val source = context.require(StandardResources.SOURCE_POSITION)
@@ -138,7 +140,7 @@ class FdtdWavePass(
     private fun selectExternal(problem: FdtdProblem): FdtdExternalBackend? = when (computeBackend) {
         "AUTO" -> FdtdBackendRegistry.firstPreferred(problem)
         "GPU" -> FdtdBackendRegistry.firstSupported(problem)
-        else -> FdtdBackendRegistry.find(computeBackend.lowercase(Locale.ROOT))
+        else -> FdtdBackendRegistry.find(computeBackend.lowercaseCompat(Locale.ROOT))
     }
 
     private fun prepare(scene: AcousticScene, source: Vec3, listener: Vec3, environment: AcousticEnvironment): Prepared {
@@ -313,9 +315,9 @@ class FdtdWavePass(
                 val phaseCurrent = current
                 val phaseNext = next
                 try {
-                    parallel.forRange(1, nz - 1) { from, to ->
+                    parallel.forRange(1, nz - 1, ParallelWorkExecutor.RangeTask { from, to ->
                         computeRange(problem, phasePrevious, phaseCurrent, phaseNext, from, to)
-                    }
+                    })
                 } catch (failure: Exception) {
                     throw RuntimeException("parallel FDTD phase failed", failure)
                 }
@@ -346,7 +348,7 @@ class FdtdWavePass(
                 state.step++
             }
             try {
-                parallel.forWorkers(parts) { workerIndex, workerCount ->
+                parallel.forWorkers(parts, PhasedParallelWorkExecutor.WorkerTask { workerIndex, workerCount ->
                     val zFrom = 1 + (nz - 2) * workerIndex / workerCount
                     val zTo = 1 + (nz - 2) * (workerIndex + 1) / workerCount
                     var step = 0
@@ -359,7 +361,7 @@ class FdtdWavePass(
                         }
                         step++
                     }
-                }
+                })
             } catch (failure: InterruptedException) {
                 Thread.currentThread().interrupt()
                 throw RuntimeException("parallel FDTD interrupted", failure)

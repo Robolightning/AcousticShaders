@@ -10,7 +10,7 @@ class MaterialFacts(
     hardness: Float, resistance: Float
 ) {
     private val registryId = clean(registryId)
-    private val stateId = if (stateId == null || stateId.trim().isEmpty()) this.registryId else stateId.trim()
+    private val stateId = if (stateId == null || stateId.trim().length == 0) this.registryId else stateId.trim()
     private val materialName = clean(materialName)
     private val soundTypeName = clean(soundTypeName)
     private val dictionaryNames: Set<String> = if (dictionaryNames == null) emptySet() else Collections.unmodifiableSet(LinkedHashSet(dictionaryNames))

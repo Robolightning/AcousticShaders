@@ -5,14 +5,29 @@ import dev.acoustic.api.scene.AcousticScene
 import dev.acoustic.api.scene.AcousticVoxel
 
 object VoxelDda {
-    fun interface Visitor {
+    interface Visitor {
         /** Return false to stop traversal. */
         fun visit(x: Int, y: Int, z: Int, traveled: Double, voxel: AcousticVoxel): Boolean
+
+        companion object {
+            operator fun invoke(block: (Int, Int, Int, Double, AcousticVoxel) -> Boolean): Visitor = object : Visitor {
+                override fun visit(x: Int, y: Int, z: Int, traveled: Double, voxel: AcousticVoxel): Boolean =
+                    block(x, y, z, traveled, voxel)
+            }
+        }
     }
 
-    fun interface CellVisitor {
+    interface CellVisitor {
         /** tEnter/tExit are distances along the normalized start->end ray. Return false to stop. */
         fun visit(x: Int, y: Int, z: Int, tEnter: Double, tExit: Double, voxel: AcousticVoxel): Boolean
+
+        companion object {
+            operator fun invoke(block: (Int, Int, Int, Double, Double, AcousticVoxel) -> Boolean): CellVisitor =
+                object : CellVisitor {
+                    override fun visit(x: Int, y: Int, z: Int, tEnter: Double, tExit: Double, voxel: AcousticVoxel): Boolean =
+                        block(x, y, z, tEnter, tExit, voxel)
+                }
+        }
     }
 
     @JvmStatic

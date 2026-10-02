@@ -1,5 +1,6 @@
 package dev.acoustic.core.pack
 
+import dev.acoustic.core.compat.uppercaseCompat
 import dev.acoustic.api.environment.AcousticMedia
 import dev.acoustic.api.environment.AcousticMedium
 import dev.acoustic.api.environment.resolve.MediumRule
@@ -52,7 +53,7 @@ class MediumPack private constructor(
                     val mediumId = requiredString(raw, "medium")
                     val medium = media[mediumId] ?: throw IllegalArgumentException("unknown medium in rule: $mediumId")
                     val priority = (raw["priority"] as? Number)?.toInt() ?: 0
-                    val kind = try { MediumRule.MatchKind.valueOf(kindText.uppercase()) }
+                    val kind = try { MediumRule.MatchKind.valueOf(kindText.uppercaseCompat(java.util.Locale.ROOT)) }
                     catch (_: IllegalArgumentException) { throw IllegalArgumentException("unknown medium rule kind: $kindText") }
                     rules.add(MediumRule(priority, kind, match, medium))
                 }

@@ -1,5 +1,6 @@
 package dev.acoustic.core.pack
 
+import dev.acoustic.core.compat.lowercaseCompat
 import java.io.IOException
 import java.io.InputStreamReader
 import java.io.Reader
@@ -65,7 +66,7 @@ class AcousticMaterialResourceLoader {
             Files.newDirectoryStream(dir).use { stream ->
                 for (path in stream) {
                     if (Files.isDirectory(path)) walkJson(root, path, out)
-                    else if (path.fileName.toString().lowercase(Locale.ROOT).endsWith(".json")) {
+                    else if (path.fileName.toString().lowercaseCompat(Locale.ROOT).endsWith(".json")) {
                         Files.newBufferedReader(path, StandardCharsets.UTF_8).use { reader ->
                             out.add(Entry(root.relativize(path).toString().replace('\\', '/'), MaterialPack.parse(read(reader))))
                         }

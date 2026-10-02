@@ -32,7 +32,7 @@ class ResolvedProfile private constructor(private val name: String, values: Map<
             val values = LinkedHashMap<String, String>()
             val raw = options.get("profile.$name") ?: throw IllegalArgumentException("unknown profile: $name")
             for (token in raw.trim().split(Regex("\\s+"))) {
-                if (token.isEmpty()) continue
+                if (token.length == 0) continue
                 val i = token.indexOf(':')
                 if (i <= 0 || i == token.length - 1) throw IllegalArgumentException("bad profile token: $token")
                 values[token.substring(0, i)] = token.substring(i + 1)

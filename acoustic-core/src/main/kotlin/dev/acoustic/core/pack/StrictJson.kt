@@ -1,5 +1,6 @@
 package dev.acoustic.core.pack
 
+import dev.acoustic.core.compat.codeCompat
 import java.util.LinkedHashMap
 
 /** Tiny dependency-free JSON parser for manifests/configs. Produces Map/List/String/Number/Boolean/null. */
@@ -80,7 +81,7 @@ class StrictJson private constructor(private val text: String) {
                     else -> throw error("bad escape")
                 }
             } else {
-                if (c.code < 0x20) throw error("control character in string")
+                if (c.codeCompat() < 0x20) throw error("control character in string")
                 builder.append(c)
             }
         }
