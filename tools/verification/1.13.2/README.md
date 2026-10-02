@@ -8,7 +8,8 @@ Verified port baseline:
 - JavaFML loader major 25
 - no Forgelin-Continuous
 - no Minecraft-1.12.2 MixinBooter dependency
-- no accepted third-party Kotlin language provider yet
+- no accepted third-party Kotlin language provider
+- self-contained exact Kotlin 1.3.50 runtime (stdlib + jdk7 + jdk8 only)
 
 The original handoff named Forgelin 1.8.4 for 1.13.2. Upstream source disproves that as a
 Forge-25 dependency: tag `1.8.4` itself targets Minecraft 1.12.2 / Forge 14.23.x and imports the
@@ -39,6 +40,16 @@ ACOUSTIC_JDK8_HOME=/path/to/jdk8 \
 ```
 
 The shared gate has passed on a real JDK 8 at commit `c6c5ae7`: 275 classfiles, maximum major 52.
+
+The 1.13.2 distributable JAR embeds only the exact Kotlin 1.3.50 runtime needed by production code:
+
+The hashes below pin the Maven/Gradle-resolved runtime artifacts used by the real ForgeGradle build; the copies bundled inside the standalone Kotlin compiler distribution are semantically equivalent inputs but are not byte-identical archives.
+
+- `kotlin-stdlib-1.3.50.jar` SHA-256 `e6f05746ee0366d0b52825a090fac474dcf44082c9083bbb205bd16976488d6c`
+- `kotlin-stdlib-jdk7-1.3.50.jar` SHA-256 `9a026639e76212f8d57b86d55b075394c2e009f1979110751d34c05c5f75d57b`
+- `kotlin-stdlib-jdk8-1.3.50.jar` SHA-256 `1b351fb6e09c14b55525c74c1f4cf48942eae43c348b7bc764a5e6e423d4da0c`
+
+The Gradle build verifies those input hashes before packaging and merges them with reproducible archive ordering/timestamps. `kotlin-runtime-package-contract.sh` checks the resulting JAR, including runtime version, JDK7/JDK8 implementation classes, absence of Kotlin reflect/coroutines payloads, and Java-8 classfile ceiling.
 
 `javafml-skeleton-contract.sh` is an offline static gate for the first game-module layer. It pins
 the exact Forge coordinate, Java/Kotlin bytecode targets, official JavaFML metadata/lifecycle model,

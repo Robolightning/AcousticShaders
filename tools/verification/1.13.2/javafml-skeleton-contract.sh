@@ -21,6 +21,11 @@ grep -F "mappings channel: 'snapshot', version: '20180921-1.13'" "$BUILD" >/dev/
 grep -F 'minecraft "net.minecraftforge:forge:${forge_version}"' "$BUILD" >/dev/null
 grep -F 'implementation "org.jetbrains.kotlin:kotlin-stdlib:${kotlin_version}"' "$BUILD" >/dev/null
 grep -F 'implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlin_version}"' "$BUILD" >/dev/null
+grep -F 'kotlinRuntimeBundle("org.jetbrains.kotlin:kotlin-stdlib:${kotlin_version}") { transitive = false }' "$BUILD" >/dev/null
+grep -F 'kotlinRuntimeBundle("org.jetbrains.kotlin:kotlin-stdlib-jdk7:${kotlin_version}") { transitive = false }' "$BUILD" >/dev/null
+grep -F 'kotlinRuntimeBundle("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlin_version}") { transitive = false }' "$BUILD" >/dev/null
+grep -F 'preserveFileTimestamps = false' "$BUILD" >/dev/null
+grep -F 'reproducibleFileOrder = true' "$BUILD" >/dev/null
 
 grep -F 'modLoader="javafml"' "$MODS" >/dev/null
 grep -F 'loaderVersion="[25,)"' "$MODS" >/dev/null

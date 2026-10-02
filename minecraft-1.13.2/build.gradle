@@ -55,11 +55,64 @@ repositories {
     mavenCentral()
 }
 
+configurations {
+    kotlinRuntimeBundle
+}
+
+def kotlinRuntimeExpectedSha256 = [
+    'kotlin-stdlib': 'e6f05746ee0366d0b52825a090fac474dcf44082c9083bbb205bd16976488d6c',
+    'kotlin-stdlib-jdk7': '9a026639e76212f8d57b86d55b075394c2e009f1979110751d34c05c5f75d57b',
+    'kotlin-stdlib-jdk8': '1b351fb6e09c14b55525c74c1f4cf48942eae43c348b7bc764a5e6e423d4da0c'
+]
+
+task verifyKotlinRuntimeInputs {
+    doLast {
+        def files = configurations.kotlinRuntimeBundle.resolve().sort { it.name }
+        if (files.size() != 3) {
+            throw new GradleException("Expected exactly 3 Kotlin runtime JARs, got ${files*.name}")
+        }
+        files.each { file ->
+            def artifact = kotlinRuntimeExpectedSha256.keySet().find { file.name == "${it}-${kotlin_version}.jar" }
+            if (artifact == null) {
+                throw new GradleException("Unexpected Kotlin runtime artifact: ${file.name}")
+            }
+            def digest = java.security.MessageDigest.getInstance('SHA-256')
+            file.withInputStream { input ->
+                byte[] buffer = new byte[65536]
+                int read
+                while ((read = input.read(buffer)) != -1) digest.update(buffer, 0, read)
+            }
+            def actual = digest.digest().collect { String.format('%02x', it & 0xff) }.join()
+            def expected = kotlinRuntimeExpectedSha256[artifact]
+            if (actual != expected) {
+                throw new GradleException("Kotlin runtime SHA-256 mismatch for ${file.name}: ${actual}")
+            }
+            logger.lifecycle("Verified ${file.name} SHA-256 ${actual}")
+        }
+    }
+}
+
 dependencies {
     minecraft "net.minecraftforge:forge:${forge_version}"
 
-    // Development/runtime classpath only. The distributable runtime-delivery decision is
-    // intentionally unresolved at this bootstrap stage; these dependencies are not shaded.
     implementation "org.jetbrains.kotlin:kotlin-stdlib:${kotlin_version}"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlin_version}"
+
+    kotlinRuntimeBundle("org.jetbrains.kotlin:kotlin-stdlib:${kotlin_version}") { transitive = false }
+    kotlinRuntimeBundle("org.jetbrains.kotlin:kotlin-stdlib-jdk7:${kotlin_version}") { transitive = false }
+    kotlinRuntimeBundle("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlin_version}") { transitive = false }
+}
+
+jar {
+    dependsOn verifyKotlinRuntimeInputs
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+        configurations.kotlinRuntimeBundle.collect { zipTree(it) }
+    }
+    exclude 'META-INF/MANIFEST.MF'
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.RSA'
+    exclude 'META-INF/*.DSA'
 }
