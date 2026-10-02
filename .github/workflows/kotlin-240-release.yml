@@ -3,7 +3,7 @@ name: Kotlin 2.4 Release Gate
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: [main, '1.12.2']
     paths:
       - 'acoustic-api/**'
       - 'acoustic-platform-api/**'
@@ -20,7 +20,7 @@ on:
       - 'settings.gradle.kts'
       - '.github/workflows/kotlin-240-release.yml'
   pull_request:
-    branches: [main, master]
+    branches: [main, '1.12.2']
     paths:
       - 'acoustic-api/**'
       - 'acoustic-platform-api/**'
