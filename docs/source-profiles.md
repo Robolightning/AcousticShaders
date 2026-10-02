@@ -16,7 +16,7 @@ This means a modpack/resource-pack author can correct a mod sound without forkin
 
 ## Default categories
 
-The RC15 generated base includes conservative fallback categories:
+The generated base includes conservative fallback categories:
 
 - `generic` — neutral world source;
 - `explosion` — low-frequency-heavy transient, stronger room excitation and diffraction, high perceptual priority;

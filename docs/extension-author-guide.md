@@ -16,7 +16,7 @@ Rules:
 - document nondeterministic algorithms;
 - expose backend requirements as capabilities rather than platform checks.
 
-GPU compute already follows the same resource contract. Optional device implementations register `FdtdExternalBackend` or `GeometricExternalBackend`, declare `supports()`/`preferredForAuto()` and an explicit `autoPriority()`, and must preserve the portable output semantics. RC11 uses priority 200 for CUDA and 100 for OpenCL. A GPU solver and CPU solver remain interchangeable producers of the same ABI resource; device failure must be isolated so CPU fallback remains valid.
+GPU compute already follows the same resource contract. Optional device implementations register `FdtdExternalBackend` or `GeometricExternalBackend`, declare `supports()`/`preferredForAuto()` and an explicit `autoPriority()`, and must preserve the portable output semantics. The built-in backends use priority 200 for CUDA and 100 for OpenCL. A GPU solver and CPU solver remain interchangeable producers of the same ABI resource; device failure must be isolated so CPU fallback remains valid.
 
 
 ## Source-aware algorithms

@@ -77,7 +77,7 @@ in:
 .minecraft/config/acousticshaders/runtime.properties
 ```
 
-The diagnostic/test harness deliberately enables debug logging when collecting reports. Shader/resource-pack authors can use the same switch while developing.
+Maintainer diagnostic tooling enables debug logging when collecting reports. Shader/resource-pack authors can use the same switch while developing.
 
 ## Documentation
 
