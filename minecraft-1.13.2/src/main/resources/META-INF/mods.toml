@@ -1,0 +1,25 @@
+modLoader="javafml"
+loaderVersion="[25,)"
+
+[[mods]]
+modId="acousticshaders"
+version="${file.jarVersion}"
+displayName="Acoustic Shaders"
+authors="Robolightning"
+description='''
+Shader-pack driven environmental acoustics for Minecraft 1.13.2.
+'''
+
+[[dependencies.acousticshaders]]
+modId="forge"
+mandatory=true
+versionRange="[25.0.223,26)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.acousticshaders]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.13.2]"
+ordering="NONE"
+side="BOTH"
